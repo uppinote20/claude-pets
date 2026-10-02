@@ -46,7 +46,7 @@ claude --plugin-dir /path/to/claude-pets
 | `/pet choose <species>` | Bring out another pet: `cat`, `chick`, `dog`, `slime`, `bunny`, `hamster`, `penguin`, `frog` |
 | `/pet size <size>` | How tall the pane is: `small` (6 rows) or `medium` (9, the default) |
 | `/pet play` | Play Pet Run: `j` jumps, `r` runs again, `Esc` stops |
-| `/pet quest [stage]` | Play Pet Quest, a platformer: `j` jumps (again while rising to go higher), `r` retries, `n` goes on |
+| `/pet quest [stage]` | Play Pet Quest, an auto-running side-scroller: `j` jumps (again while rising to go higher), `r` retries, `n` goes on |
 | `/pet status` | Level, experience and counts |
 | `/pet bye` | Close the pane |
 
@@ -86,11 +86,11 @@ Every snack is 1 experience for the pet, and its best score is kept (`/pet statu
 
 ## Pet Quest
 
-`/pet quest` opens the next stage of a side-scroller in the spirit of the auto-running Marios. The pet runs on its own; `j` jumps, and a second `j` while it is rising takes it higher. Stomp the bugs from above, knock the `?` blocks from below for snacks, clear the pits and pipes, and reach the flag. A wall stops it until it jumps.
+`/pet quest` opens the next stage of an auto-running side-scroller. The pet runs on its own; `j` jumps, and a second `j` while it is rising takes it higher, even off the top of the view (a little arrow shows where it will come down). Stomp the bugs from above, knock the gift boxes from below for snacks, hop the stumps and the pits, and reach the snack bowl. A wall stops it until it jumps.
 
-Three stages, each opened by clearing the one before (`/pet quest 2` replays one already open). Snacks are experience as in Pet Run, and `/pet status` counts the stages cleared.
+Eight stages, each opened by clearing the one before (`/pet quest 3` replays one already open). Snacks are experience as in Pet Run, and `/pet status` counts the stages cleared.
 
-Stages are tile maps in [`hooks/quest.ts`](hooks/quest.ts), one character per 4×4 tile, so all three take about 2 KB. A test searches every stage for a way through, so a stage that cannot be cleared fails the build.
+Stages are tile maps in [`hooks/quest.ts`](hooks/quest.ts), one character per 4×4 tile, so all eight take about 5 KB. A test searches every stage for a way through, so a stage that cannot be cleared fails the build.
 
 ## Sizes
 

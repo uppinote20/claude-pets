@@ -365,7 +365,7 @@ test('Pet Quest stages are whole maps: equal rows, known tiles, a flag', () => {
   for (const stage of STAGES) {
     expect(stage.length).toBe(QUEST_ROWS)
     expect(new Set(stage.map(row => row.length)).size).toBe(1)
-    expect(stage.join('').replace(/[.#=?Pcb F]/g, '')).toBe('')
+    expect(stage.join('').replace(/[.#=gTcbF]/g, '')).toBe('')
     expect(stage.join('')).toContain('F')
   }
 })
@@ -403,17 +403,19 @@ function clears(index: number): boolean {
   return false
 }
 
-test('every Pet Quest stage can be cleared', () => {
-  expect(STAGES.map((_, index) => clears(index))).toEqual(STAGES.map(() => true))
-})
+for (const index of STAGES.keys()) {
+  test(`Pet Quest stage ${index + 1} can be cleared`, () => {
+    expect(clears(index)).toBe(true)
+  })
+}
 
-test('Pet Quest: a ? block gives a snack, a fall stomps a bug, a pit ends it, the flag clears it', () => {
+test('Pet Quest: a gift box gives a snack, a fall stomps a bug, a pit ends it, the bowl clears it', () => {
   const open = (rows: string[]): Quest => ({ ...newQuest(0, 40), tiles: rows, foes: [], phase: 'running' as const })
   const floor = '#'.repeat(30)
   const sky = '.'.repeat(30)
 
-  // A ? block right over its head, rising into it.
-  const knocked = advanceQuest({ ...open([sky, sky, '..?' + sky.slice(3), sky, sky, sky, floor]), y: 11, rise: 2, isGrounded: false })
+  // A gift box right over its head, rising into it.
+  const knocked = advanceQuest({ ...open([sky, sky, '..g' + sky.slice(3), sky, sky, sky, floor]), y: 11, rise: 2, isGrounded: false })
   expect(knocked.snacks).toBe(1)
   expect(knocked.tiles[2]?.[2]).toBe('u')
 
@@ -427,6 +429,16 @@ test('Pet Quest: a ? block gives a snack, a fall stomps a bug, a pit ends it, th
     falling = advanceQuest(falling)
   }
   expect(falling.phase).toBe('over')
+
+  // Off the top of the view it keeps going and comes back down.
+  let high = { ...open([sky, sky, sky, sky, sky, sky, floor]), y: 2, rise: 4, isGrounded: false }
+  high = advanceQuest(high)
+  expect(high.y).toBeLessThan(0)
+  for (let tick = 0; tick < 40; tick += 1) {
+    high = advanceQuest(high)
+  }
+  expect(high.isGrounded).toBe(true)
+  expect(high.phase).toBe('running')
 
   const flagged = advanceQuest({ ...open([sky, sky, sky, sky, sky, '..F' + sky.slice(3), floor]), x: 2 })
   expect(flagged.phase).toBe('clear')
@@ -452,7 +464,7 @@ test('/pet quest opens the next open stage, keeps later ones shut, and j starts 
       })
     ).text
 
-  expect(await run('quest 2')).toBe('Stages open: 1 to 1 of 3.')
+  expect(await run('quest 2')).toBe('Stages open: 1 to 1 of 8.')
   expect(await run('quest')).toMatch(/^Stage 1: j to start/)
 
   const game = await $.ui.mount({ ...PANE, requestId: 'pets-quest', surface: 'terminal' })
@@ -461,7 +473,7 @@ test('/pet quest opens the next open stage, keeps later ones shut, and j starts 
   await game.press({ key: 'jump' })
   await clock.advance(50 * 40)
   expect(await game.find({ type: 'Text', text: /press j to start/ })).toBeUndefined()
-  expect(await game.find({ type: 'Text', text: /stage 1\/3/ })).toBeDefined()
+  expect(await game.find({ type: 'Text', text: /stage 1\/8/ })).toBeDefined()
   // Retry does nothing mid-run.
   await game.press({ key: 'retry' })
   expect(await game.find({ type: 'Text', text: /press j to start/ })).toBeUndefined()

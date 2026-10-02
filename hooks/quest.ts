@@ -1,10 +1,10 @@
 /**
- * Pet Quest: a side-scrolling platformer in the spirit of the auto-running Marios. The pet
- * runs on its own; a press jumps, a second press while rising jumps higher. Stomp the bugs,
- * snap up the snacks, knock the ? blocks from below, and reach the flag.
+ * Pet Quest: an auto-running side-scroller. The pet runs on its own; a press jumps, a second
+ * press while rising jumps higher. Stomp the bugs, snap up the snacks, knock the gift boxes
+ * from below, hop the stumps, and reach the snack bowl.
  *
  * Stages are tile maps, one character per 4×4 tile, as the sprites are pixels: the three
- * below take about 2 KB. Pure, like run.ts: `advance` and `paintQuest` are all there is.
+ * below take about 5 KB. Pure, like run.ts: `advance` and `paintQuest` are all there is.
  */
 import type { Pet } from '../types'
 import { PALETTE, spriteRows, worn } from './scene'
@@ -30,43 +30,94 @@ const SNACK_POINTS = 10
 const STOMP_POINTS = 20
 
 /**
- * `.` sky, `#` ground, `=` brick, `?` a block holding a snack, `P` pipe, `c` a snack,
- * `b` a bug (it walks, turning at walls and edges), `F` the flag.
+ * `.` sky, `#` ground, `=` brick, `g` a gift box holding a snack, `T` a tree stump,
+ * `c` a snack, `b` a bug (it walks, turning at walls and edges), `F` the goal column
+ * (the snack bowl stands at its foot).
  */
 export const STAGES: readonly (readonly string[])[] = [
-  // Stage 1
+  // 1
   [
     '.............c......................................................................',
     '................................................................................F...',
-    '............?...........................?=?.....................................F...',
+    '............g...........................g=g.....................................F...',
     '......................cc.......cc...===.............................#...........F...',
-    '................................................PP.....ccc.........##...........F...',
-    '..................PP......b.................b...PP............b...###...........F...',
+    '................................................TT.....ccc.........##...........F...',
+    '..................TT......b.................b...TT............b...###...........F...',
     '##############################...###################################################',
   ],
-  // Stage 2
+  // 2
   [
     '.............................c..................................................................',
     '............................................................................................F...',
-    '............................?.............cc....?......................ccc.............#....F...',
-    '.....................cc...=====...#.#.........=====...........PP......................##....F...',
-    '............PP...................##.##..................PP....PP.....................###....F...',
-    '............PP..b...............###b###............b....PP....PP..b.............b...####....F...',
+    '............................g.............cc....g......................ccc.............#....F...',
+    '.....................cc...=====...#.#.........=====...........TT......................##....F...',
+    '............TT...................##.##..................TT....TT.....................###....F...',
+    '............TT..b...............###b###............b....TT....TT..b.............b...####....F...',
     '####################...##################...##########################....######################',
   ],
-  // Stage 3
+  // 3
   [
     '............................................................................................................',
-    '....................................................................?...................................F...',
-    '...............................ccc....?=?......................................cccc.=....#..............F...',
-    '...............cc...................=======..........cc.....PP....====......==..........##..............F...',
-    '......................PP....................................PP.........................###.#............F...',
-    '..........b...........PP..b..................b..b...........PP..b.......b.............####b##...........F...',
+    '....................................................................g...................................F...',
+    '...............................ccc....g=g......................................cccc.=....#..............F...',
+    '...............cc...................=======..........cc.....TT....====......==..........##..............F...',
+    '......................TT....................................TT.........................###.#............F...',
+    '..........b...........TT..b..................b..b...........TT..b.......b.............####b##...........F...',
     '##############...#############....##################....######################.....#########################',
+  ],
+  // 4
+  [
+    '..............................................................................................................',
+    '.........................c...............c.................c...............c.................c............F...',
+    '.................c..........................g.........................g...................................F...',
+    '........................TT....cc........TT.....cc.........TT..............TT....cc..........TT............F...',
+    '................TT......TT........TT....TT................TT......TT......TT........TT......TT............F...',
+    '..........TT....TT..b...TT....b...TT....TT....b.....TT....TT..b...TT..b...TT....b...TT..b...TT............F...',
+    '##############################################################################################################',
+  ],
+  // 5
+  [
+    '................................................................................................................',
+    '............................................................................................................F...',
+    '....................g........cc.........g.........c..............ccc........g.........c.....................F...',
+    '..............cc............===................c.==.............====...............c.==.....................F...',
+    '..............==...............==.............==..................................==........................F...',
+    '......................b...............b.................b.b...............b...................b.............F...',
+    '############......########........##########........##########........##########........########################',
+  ],
+  // 6
+  [
+    '........................................................................................................',
+    '..........................................................................g.........................F...',
+    '................c...c.....g.....c...c...............g.....c...c.................c...c...c...........F...',
+    '..........................................====......................................................F...',
+    '......................................................................TT............................F...',
+    '..............b...b...b.......b...b...b.................b...b...b.....TT......b...b...b...b.........F...',
+    '################################################...#####################################################',
+  ],
+  // 7
+  [
+    '.................................c....................c........................c....................................',
+    '................c...............................................................................................F...',
+    '.....................c..g........##........c..g........#..........c...g........##...........c........#..........F...',
+    '................##..............####..................##.#....................####..................##..........F...',
+    '...............####............######................###.##..................######................###..........F...',
+    '..............######......b...########.b........b...####.###.b..........b...########..b...........####...b......F...',
+    '####################...###################...###################....######################....######################',
+  ],
+  // 8
+  [
+    '........................................................................................................................................',
+    '...............................c....................g......cc..............c...........................c....g..............#........F...',
+    '...............cc.....................cc........g..........==.................g..........c......................cc........##........F...',
+    '...............==.............TT.....===......#...........................TT..........c.==............TT.......===.......###........F...',
+    '........................TT....TT.............##.....................TT....TT.........==.........TT....TT................####........F...',
+    '..........b..........b..TT..b.TT..b.........###...b...b.........b...TT..b.TT....b.............b.TT..b.TT..b............#####..b.....F...',
+    '##############....##################.....#################....######################......####################.....#####################',
   ],
 ]
 
-const SOLID = new Set(['#', '=', '?', 'u', 'P'])
+const SOLID = new Set(['#', '=', 'g', 'u', 'T'])
 
 type Foe = { x: number; y: number; dir: -1 | 1; isAlive: boolean }
 
@@ -185,7 +236,7 @@ function setTile(tiles: string[], tx: number, ty: number, mark: string): void {
   }
 }
 
-/** One tick: run, fall or rise against the tiles, eat, knock, stomp, and end at a pit, a bug or the flag. */
+/** One tick: run, fall or rise against the tiles, eat, knock, stomp, and end at a pit, a bug or the bowl. */
 export function advanceQuest(quest: Quest): Quest {
   if (quest.phase !== 'running') {
     return quest
@@ -219,16 +270,12 @@ export function advanceQuest(quest: Quest): Quest {
 
     if (head.length > 0) {
       for (const [tx, ty] of head) {
-        if (tileAt(tiles, tx, ty) === '?') {
+        if (tileAt(tiles, tx, ty) === 'g') {
           setTile(tiles, tx, ty, 'u')
           snacks += 1
         }
       }
       y = (Math.floor((next + BOX.y) / TILE) + 1) * TILE - BOX.y
-      rise = 0
-    } else if (next + BOX.y < 0) {
-      // The top of the view is a ceiling, so it never leaves the screen.
-      y = -BOX.y
       rise = 0
     } else {
       y = next
@@ -279,8 +326,8 @@ export function advanceQuest(quest: Quest): Quest {
   if (y > QUEST_HEIGHT) {
     phase = 'over'
   }
-  const flag = tiles[QUEST_ROWS - 2]?.indexOf('F') ?? -1
-  if (phase === 'running' && flag >= 0 && pet.x + pet.w >= flag * TILE) {
+  const goal = tiles[QUEST_ROWS - 2]?.indexOf('F') ?? -1
+  if (phase === 'running' && goal >= 0 && pet.x + pet.w >= goal * TILE) {
     phase = 'clear'
   }
 
@@ -299,14 +346,16 @@ const INK = {
   dirtDark: 0x7d6049,
   brick: 0xd9946a,
   mortar: 0xa86f4c,
-  block: 0xffd447,
-  blockDot: 0xc9952a,
-  used: 0xa88a6a,
-  pipe: 0x7fd18a,
-  pipeLight: 0xbdeec2,
-  pipeDark: 0x4f9a5a,
-  pole: 0xe8e8f0,
-  flag: 0xff87af,
+  gift: 0xff9ec4,
+  ribbon: 0xffe36e,
+  opened: 0xa88a8f,
+  bark: 0xa0704c,
+  barkDark: 0x7a5236,
+  rings: 0xe2bf8f,
+  bowl: 0x87b7ff,
+  bowlDark: 0x5f8fd8,
+  heart: 0xff87af,
+  marker: 0xffafd7,
   snack: 0xffc46b,
   cloud: 0x3c3c50,
 } as const
@@ -319,7 +368,7 @@ const CLOUD = ['..ccc...', '.cccccc.', 'cccccccc'] as const
 function tilePixels(tiles: readonly string[], tx: number, ty: number, tick: number): (number | null)[][] | null {
   const mark = tileAt(tiles, tx, ty)
   const above = tileAt(tiles, tx, ty - 1)
-  const fill = (color: number) => Array.from({ length: TILE }, () => Array.from({ length: TILE }, () => color))
+  const fill = (color: number): (number | null)[][] => Array.from({ length: TILE }, () => Array.from({ length: TILE }, () => color))
 
   switch (mark) {
     case '#': {
@@ -339,22 +388,30 @@ function tilePixels(tiles: readonly string[], tx: number, ty: number, tick: numb
 
       return tile
     }
-    case '?': {
-      const tile = fill(INK.block)
-      // A blink every so often, as the old blocks did.
-      tile[1]![1] = tile[2]![2] = Math.floor(tick / 6) % 4 === 0 ? INK.block : INK.blockDot
+    case 'g': {
+      // A gift box: pink, a yellow ribbon each way; the bow twinkles now and then.
+      const tile = fill(INK.gift)
+      tile[1] = [INK.ribbon, INK.ribbon, INK.ribbon, INK.ribbon]
+      for (const row of tile) {
+        row[2] = INK.ribbon
+      }
+      tile[0]![2] = Math.floor(tick / 6) % 4 === 0 ? 0xffffff : INK.ribbon
 
       return tile
     }
-    case 'u':
-      return fill(INK.used)
-    case 'P': {
-      const isLeft = tileAt(tiles, tx - 1, ty) !== 'P'
-      const isLip = above !== 'P'
-      const row = isLeft ? [INK.pipeDark, INK.pipeLight, INK.pipe, INK.pipe] : [INK.pipe, INK.pipe, INK.pipe, INK.pipeDark]
-      const tile = Array.from({ length: TILE }, () => [...row])
-      if (isLip) {
-        tile[0] = Array.from({ length: TILE }, () => INK.pipeLight)
+    case 'u': {
+      const tile = fill(INK.opened)
+      tile[0] = [null, null, null, null]
+
+      return tile
+    }
+    case 'T': {
+      // A tree stump: bark down the sides, rings on top.
+      const isLeft = tileAt(tiles, tx - 1, ty) !== 'T'
+      const row: number[] = isLeft ? [INK.barkDark, INK.bark, INK.bark, INK.bark] : [INK.bark, INK.bark, INK.bark, INK.barkDark]
+      const tile = Array.from({ length: TILE }, (_, y) => (y % 2 === 1 ? row.map((color, x) => (x === 2 ? INK.barkDark : color)) : [...row]))
+      if (above !== 'T') {
+        tile[0] = Array.from({ length: TILE }, (_, x) => (x === (isLeft ? 3 : 0) ? INK.bark : INK.rings))
       }
 
       return tile
@@ -367,14 +424,17 @@ function tilePixels(tiles: readonly string[], tx: number, ty: number, tick: numb
       return tile
     }
     case 'F': {
+      // The goal: a snack bowl at the foot of the column, a heart bobbing over it.
       const tile: (number | null)[][] = Array.from({ length: TILE }, () => Array.from({ length: TILE }, () => null))
-      for (const row of tile) {
-        row[0] = INK.pole
-      }
-      if (above !== 'F') {
-        tile[0] = [INK.pole, INK.flag, INK.flag, INK.flag]
-        tile[1] = [INK.pole, INK.flag, INK.flag, null]
-        tile[2]![1] = INK.flag
+      const below = tileAt(tiles, tx, ty + 1)
+      if (below !== 'F') {
+        tile[0] = [INK.snack, INK.snack, INK.snack, INK.snack]
+        tile[1] = [INK.bowl, INK.bowl, INK.bowl, INK.bowl]
+        tile[2] = [null, INK.bowlDark, INK.bowlDark, null]
+        tile[3] = [null, INK.bowl, INK.bowl, null]
+      } else if (tileAt(tiles, tx, ty + 2) !== 'F') {
+        const bob = Math.floor(tick / 6) % 2
+        tile[bob]![0] = tile[bob]![2] = tile[bob + 1]![0] = tile[bob + 1]![1] = tile[bob + 1]![2] = tile[bob + 2]![1] = INK.heart
       }
 
       return tile
@@ -435,6 +495,15 @@ export function paintQuest(quest: Quest, kind: Species, stage: Stage): Pixels {
   }
   const top = Math.round(quest.y)
   stamp(spriteRows(one, sprite, false), kind.ink, Math.round(quest.x), top)
+  // Off the top of the view: a little arrow where it will come down.
+  if (top + BOX.y < 0) {
+    const at = Math.round(quest.x) + 3
+
+    put(at, 0, INK.marker)
+    put(at + 1, 0, INK.marker)
+    put(at - 1, 1, INK.marker)
+    put(at + 2, 1, INK.marker)
+  }
   if (stage !== 'baby') {
     const accessory = kind.accessory.mini
     const { rows, x } = worn(accessory, SIDE, 1)
