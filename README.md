@@ -50,7 +50,7 @@ claude --plugin-dir /path/to/claude-pets
 | `/pet status` | Level, experience and counts |
 | `/pet bye` | Close the pane |
 
-`ctrl+x x` also closes the pane.
+`ctrl+x x` also closes the pane. Clicking the pane's `✕` closes it in the fullscreen layout (`/tui fullscreen`); on the main screen (`/tui default`) the terminal reports no clicks, so the mark is not clickable there: use `/pet bye` or `ctrl+x x`.
 
 ## Growth
 
