@@ -1,3 +1,18 @@
+/**
+ * The hooks module: state, the /pet command, session reactions and the Pane render.
+ * @handbook 1.1-mod-registration
+ * @handbook 1.2-state-layers
+ * @handbook 1.3-event-flow
+ * @handbook 2.1-defensive-store-read
+ * @handbook 2.2-grow-write-once
+ * @handbook 2.3-name-sanitizing
+ * @handbook 3.1-xp-level-curve
+ * @handbook 3.2-mood-state-machine
+ * @handbook 3.3-pet-command
+ * @handbook 4.2-pixel-pipeline
+ * @handbook 4.3-surface-branch
+ * @tested tests/pet.test.ts
+ */
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
@@ -24,6 +39,8 @@ const XP_PER_TURN = 5
 const XP_PER_PAT = 2
 const TOKENS_PER_XP = 1000
 const XP_CURVE = 25
+/** What follows `/pet`: the command's description and its usage line are both built from this. */
+const VERBS = ['pat', 'name <name>', 'choose <species>', 'status', 'bye'] as const
 
 const PASTEL = { yellow: '#ffd787', pink: '#ffafd7', green: '#afd7af', gray: '#b2b2b2' } as const
 const NEWBORN: Pet = { x: 0, dir: 1, frame: 0, mood: 'walk', hold: 0, idle: 0 }
@@ -330,7 +347,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'pet',
-      description: 'Let your pixel pet out; /pet pat, name <name>, choose <species>, status, bye',
+      description: `Let your pixel pet out; /pet ${VERBS.join(', ')}`,
     })
     const kept = toProfile(await $.store.get(PROFILE_KEY))
     await update($, profile, () => kept)
@@ -390,7 +407,7 @@ export const register: Register = on => {
 
         return { text: `${called} went back inside.` }
       default:
-        return { text: 'Usage: /pet, /pet pat, /pet name <name>, /pet choose <species>, /pet status, /pet bye' }
+        return { text: `Usage: ${['/pet', ...VERBS.map(form => `/pet ${form}`)].join(', ')}` }
     }
   })
 
@@ -419,10 +436,12 @@ export const register: Register = on => {
     if (isMain) {
       await update($, pet, one => act(one, 'happy', 10))
     }
-    if (levelOf(statsOf(now)) > shownLevel) {
-      $.ui.toast(`${calledOf(now)} reached Lv ${levelOf(statsOf(now))}!`)
+    const level = levelOf(statsOf(now))
+
+    if (level > shownLevel) {
+      $.ui.toast(`${calledOf(now)} reached Lv ${level}!`)
     }
-    shownLevel = levelOf(statsOf(now))
+    shownLevel = level
 
     return next(e)
   })
@@ -437,9 +456,8 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
-    const one = await read($, pet)
-    const who = await read($, profile)
-    const isSad = await read($, isWorried)
+    const [one, who, isSad] = await Promise.all([read($, pet), read($, profile), read($, isWorried)])
+    const stats = statsOf(who)
     const yard = Math.max(SPRITE_CELLS + HEART_CELLS, Math.min(40, e.props.bodyColumns - 2))
     const scene = toCells(paint(one, speciesOf(who), isSad, yard))
     const grass = (cells: number) => '‿'.repeat(Math.max(0, cells))
@@ -461,8 +479,8 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         <Box>
-          {statsOf(who).name !== '' && <Text color={PASTEL.pink} bold>{statsOf(who).name} </Text>}
-          <Text color={PASTEL.gray}>Lv {levelOf(statsOf(who))}  </Text>
+          {stats.name !== '' && <Text color={PASTEL.pink} bold>{stats.name} </Text>}
+          <Text color={PASTEL.gray}>Lv {levelOf(stats)}  </Text>
           <Text color={PASTEL.yellow}>{saysOf(one, who, isSad)}</Text>
         </Box>
         {petView}

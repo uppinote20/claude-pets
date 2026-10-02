@@ -83,7 +83,7 @@ claude plugin validate .claude-plugin/plugin.json   # manifest and hooks module
 claude plugin test .                                # tests/*.test.ts
 ```
 
-The species images in `assets/` are generated from the sprite data. Regenerate them after adding or changing a species (Node 24+):
+The species images in `assets/` are generated from the sprite data. Regenerate them after adding or changing a species (Node 22.18+):
 
 ```bash
 node scripts/sprites.mjs
