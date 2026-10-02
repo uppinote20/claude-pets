@@ -74,10 +74,14 @@ A pet reaches level `n + 1` at `25 × n²` experience: level 2 at 25, level 5 at
 | Stage | From | Looks |
 |-------|------|-------|
 | Baby | Lv 1 | As drawn |
-| Grown | Lv 15 | Wears its accessory: the cat and the bunny a ribbon, the chick a flower, the dog a scarf, the slime and the frog a crown, the hamster a leaf, the penguin a bow tie |
-| Star | Lv 40 | Its accessory, and a twinkle beside its head |
+| Teen | Lv 15 | A taller body of its own, and its accessory: the cat and the bunny a ribbon, the chick a flower, the dog a scarf, the slime and the frog a crown, the hamster a leaf, the penguin a bow tie |
+| Adult | Lv 40 | Evolves by its nature at that moment (worker, scholar, gamer, sweetie or curious), and twinkles |
 
-A toast says when it grows up or becomes a star. Levels and what is kept do not change: a pet that is already past Lv 15 wears its accessory the next time it is out.
+One evolution in twenty (with `luck` on) takes the **rare form** instead: the celestial cat, the phoenix chick, the moon wolf, the king slime, the moon bunny, the golden hamster, the emperor penguin, the prince frog.
+
+An adult with a drawing of its own for its nature wears it: so far the cat, in overalls, a scholar's robe and glasses, a hoodie, or extra fluff. The others are their teen in their nature's gear until theirs are drawn. The small size keeps the mini sprite at every stage.
+
+The form is settled when it reaches Lv 40 and kept from then on. A toast says when it becomes a teen and what it evolves into.
 
 ## Pet Run
 

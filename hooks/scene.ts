@@ -17,14 +17,17 @@ export type Size = 'small' | 'medium'
 export const SIZES: readonly Size[] = ['small', 'medium']
 export const DEFAULT_SIZE: Size = 'medium'
 
-/** How far a pet has grown: a baby as drawn, grown with its accessory, a star that twinkles too. */
-export type Stage = 'baby' | 'grown' | 'star'
+/** How far a pet has grown: a baby, a teen with its accessory, an adult in its form. */
+export type Stage = 'baby' | 'teen' | 'adult'
+
+/** What an adult became at Lv 40: its nature then, or one time in twenty the rare form. */
+export type Form = Nature | 'rare'
 
 /** The levels each stage begins at. */
-export const STAGE_LEVELS = { grown: 15, star: 40 } as const
+export const STAGE_LEVELS = { teen: 15, adult: 40 } as const
 
 export function stageOf(level: number): Stage {
-  return level >= STAGE_LEVELS.star ? 'star' : level >= STAGE_LEVELS.grown ? 'grown' : 'baby'
+  return level >= STAGE_LEVELS.adult ? 'adult' : level >= STAGE_LEVELS.teen ? 'teen' : 'baby'
 }
 
 type Look = {
@@ -154,6 +157,18 @@ export function lookOf(size: Size): Look {
   return LOOKS[size]
 }
 
+/** The big sprite for a stage: the baby, the teen, or an adult's own drawing where it has one. */
+export function bodyOf(kind: Species, stage: Stage, form: Form): Sprite {
+  if (stage === 'baby') {
+    return kind.big
+  }
+  if (stage === 'adult' && form !== 'rare') {
+    return kind.adults?.[form] ?? kind.teen
+  }
+
+  return kind.teen
+}
+
 function spriteOf(kind: Species, size: Size): Sprite {
   return kind[LOOKS[size].sprite]
 }
@@ -207,6 +222,8 @@ export type PaintOptions = {
   /** The SVG card draws its own grass, so it asks for none. */
   withGrass?: boolean
   stage?: Stage
+  /** An adult's form; ignored before Lv 40. */
+  form?: Form
   /** What it carries while it works, and what stands in its corner of the yard. */
   nature?: Nature
   /** The sun, the evening sun, or the moon and stars, by the local hour. */
@@ -228,9 +245,13 @@ export function worn(accessory: Accessory, spriteWidth: number, dir: Pet['dir'])
  * at its stage, its heart or sparkle, and a strip of grass with two flowers and its shadow.
  */
 export function paint(one: Pet, kind: Species, size: Size, width: number, steps: number, options: PaintOptions = {}): Scene {
-  const { isSad = false, withGrass = true, stage = 'baby', nature = 'curious', daypart = 'day' } = options
+  const { isSad = false, withGrass = true, stage = 'baby', nature = 'curious', daypart = 'day', form = 'curious' } = options
   const look = LOOKS[size]
-  const sprite = spriteOf(kind, size)
+  // The small pane keeps the mini sprite at every stage; the big one grows and takes its form.
+  const isBig = look.sprite === 'big'
+  const isRare = isBig && stage === 'adult' && form === 'rare'
+  const sprite = isBig ? bodyOf(kind, stage, form) : spriteOf(kind, size)
+  const ink = { ...kind.ink, ...(sprite.ink ?? {}), ...(isRare ? kind.rare.ink : {}) }
   const height = sceneHeight(kind, size)
   const spriteWidth = sprite.rows[0]?.length ?? 0
   const pixels: Pixels = Array.from({ length: height }, () => Array.from({ length: width }, () => null))
@@ -288,12 +309,16 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
       put(x, grassTop, PALETTE.shadow)
     }
   }
-  stamp(spriteRows(one, sprite, isSad), kind.ink, left, top)
-  // A cap, a headset or a pin takes the place of a grown pet's head accessory.
-  const gear = gearOf(nature, kind.head[look.sprite], look.sprite === 'big', one.mood === 'work', one.frame)
+  stamp(spriteRows(one, sprite, isSad), ink, left, top)
+  // A cap, a headset or a pin takes the place of a head accessory; a rare adult wears its mark.
+  const gear = gearOf(nature, sprite.head ?? kind.head[look.sprite], isBig, one.mood === 'work', one.frame)
   const isHeadCovered = nature === 'scholar' || nature === 'gamer' || nature === 'sweetie'
-  if (stage !== 'baby' && !(isHeadCovered && kind.accessory.slot === 'head')) {
-    const accessory = kind.accessory[look.sprite]
+  if (isRare) {
+    const { rows, x } = worn(kind.rare.overlay, spriteWidth, one.dir)
+
+    stamp(rows, kind.rare.overlay.ink, left + x, top + kind.rare.overlay.y)
+  } else if (stage !== 'baby' && !(isHeadCovered && kind.accessory.slot === 'head')) {
+    const accessory = (isBig ? sprite.accessory : undefined) ?? kind.accessory[look.sprite]
     const { rows, x } = worn(accessory, spriteWidth, one.dir)
 
     stamp(rows, accessory.ink, left + x, top + accessory.y)
@@ -303,10 +328,10 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
 
     stamp(placed.rows, placed.ink, left + placed.x, top + placed.y)
   }
-  // A star twinkles beside its head every other tick, high then low, unless a heart or a
+  // An adult twinkles beside its head every other tick, high then low, unless a heart or a
   // sparkle already shows there. The head is on the side it faces; with no room there, at the
   // yard's left edge, it takes the badge columns on the right.
-  if (stage === 'star' && (one.mood === 'walk' || one.mood === 'work' || one.mood === 'sleep') && one.frame % 2 === 0) {
+  if (stage === 'adult' && (one.mood === 'walk' || one.mood === 'work' || one.mood === 'sleep') && one.frame % 2 === 0) {
     const ahead = left - SPARKLE[0].length - 1
     const x = one.dir === -1 && ahead >= 0 ? ahead : left + spriteWidth + 1
 
