@@ -2,6 +2,10 @@
 
 A pixel pet that lives in a Claude Code pane. It wanders while you work, reacts to what your session does, and grows across sessions.
 
+| <img src="assets/cat.svg" width="144" alt="cat"> | <img src="assets/chick.svg" width="144" alt="chick"> |
+|:---:|:---:|
+| `cat` | `chick` |
+
 > **Early access.** This is a Claude Code *mod* (a plugin of function hooks). That API is early access and can change between Claude Code releases, so a new release may break the pet until this plugin catches up.
 
 ## What it does
@@ -77,6 +81,12 @@ ink: { o: 0xffd787, w: 0xfff3dc, p: 0xffafd7, k: 0x5f5f5f },
 ```bash
 claude plugin validate .claude-plugin/plugin.json   # manifest and hooks module
 claude plugin test .                                # tests/*.test.ts
+```
+
+The species images in `assets/` are generated from the sprite data. Regenerate them after adding or changing a species (Node 24+):
+
+```bash
+node scripts/sprites.mjs
 ```
 
 Once Claude Code has loaded the plugin from this folder it lays its type declarations in `.claude-plugin/types/`, and `tsc -p .` type-checks the plugin.
