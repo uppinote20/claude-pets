@@ -19,6 +19,16 @@ export type PetStats = {
   turns: number
   /** Output tokens of the turns it watched. */
   tokens: number
+  /** Snacks eaten in Pet Run, and its best score there. */
+  snacks: number
+  best: number
+}
+
+/** What the Pet Run pane's text shows: the game's own state lives in the hooks module. */
+export type RunView = {
+  phase: 'ready' | 'running' | 'over'
+  score: number
+  snacks: number
 }
 
 /** How tall the pane draws the pet: `small` is the 8×8 sprite, `medium` the 12×12 one. A stored size no longer offered reads as the default. */
@@ -33,6 +43,6 @@ export type PetProfile = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'pets': { pet: Pet; profile: PetProfile; isWorried: boolean }
+    'pets': { pet: Pet; profile: PetProfile; isWorried: boolean; run: RunView }
   }
 }

@@ -8,6 +8,7 @@
  */
 import { expect, mock, test } from 'claude-code/testing'
 
+import { advance, jump, newRun, scoreOf } from '../hooks/run'
 import { stageOf } from '../hooks/scene'
 import { SPECIES } from '../hooks/species'
 
@@ -232,4 +233,94 @@ test('a pet grows up at Lv 15 and wears its accessory, and is a star at Lv 40', 
 
 test('stages begin at Lv 15 and Lv 40', () => {
   expect([1, 14, 15, 39, 40, 99].map(stageOf)).toEqual(['baby', 'baby', 'grown', 'grown', 'star', 'star'])
+})
+
+test('Pet Run: a jump starts it, a snack touched is eaten, a bug touched ends it', () => {
+  const cat = SPECIES.cat!
+  const ready = newRun(40, 7)
+
+  expect(ready.phase).toBe('ready')
+  expect(advance(ready, cat)).toBe(ready)
+
+  const running = jump(ready)
+  expect(running.phase).toBe('running')
+  // Midair, a second jump does nothing.
+  const airborne = advance(running, cat)
+  expect(airborne.lift).toBeGreaterThan(0)
+  expect(jump(airborne)).toBe(airborne)
+
+  const grounded = { ...running, rise: 0, lift: 0 }
+  const fed = advance({ ...grounded, things: [{ kind: 'snack' as const, x: 6, y: 13 }] }, cat)
+  expect(fed.snacks).toBe(1)
+  expect(fed.things).toEqual([])
+  expect(scoreOf(fed)).toBe(10)
+
+  const hit = advance({ ...grounded, things: [{ kind: 'bug' as const, x: 7, y: 16 }] }, cat)
+  expect(hit.phase).toBe('over')
+  expect(jump(hit)).toBe(hit)
+})
+
+test('/pet play opens Pet Run, j jumps, the course repaints in place, and the best run is kept', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  mock.store(on, { profile: { species: 'cat', pets: { cat: { name: '초코' } } } })
+  const opened: unknown[] = []
+  on('ui.open', async (_, e) => {
+    opened.push({ id: e.id, focus: e.focus, closeOnEscape: e.closeOnEscape })
+
+    return { value: { isPlaced: true as const } }
+  })
+  let blits = 0
+  on('ui.blit', async (_, e) => {
+    if (e.requestId === 'pets-run' && e.key === 'run') {
+      blits += 1
+    }
+
+    return { value: {} }
+  })
+  on('ui.toast', async () => ({ value: undefined }))
+  on('session.surfaces', async () => ({ value: ['terminal' as const] }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const run = async (args: string) =>
+    (
+      await $.command.run({
+        command: 'pet',
+        args,
+        origin: { kind: 'composer' },
+        presentation: { isFullscreen: false, columns: 80 },
+      })
+    ).text
+
+  expect(await run('play')).toBe('초코 is ready to run: j to jump, r to start over, Esc to stop.')
+  expect(opened).toEqual([{ id: 'pets-run', focus: true, closeOnEscape: true }])
+
+  const game = await $.ui.mount({ ...PANE, requestId: 'pets-run', surface: 'terminal' })
+  expect(await game.find({ type: 'Raster', key: 'run' })).toBeDefined()
+  expect(await game.find({ type: 'Text', text: /press j to start/ })).toBeDefined()
+
+  await game.press({ key: 'jump' })
+  await clock.advance(50 * 20)
+  expect(blits).toBeGreaterThan(10)
+
+  // Left alone, the first bug ends it.
+  await clock.advance(50 * 400)
+  expect(await game.find({ type: 'Text', text: /ouch! r to run again/ })).toBeDefined()
+  expect(await run('status')).toMatch(/Pet Run best \d+, 0 snacks/)
+
+  await game.press({ key: 'restart' })
+  expect(await game.find({ type: 'Text', text: /press j to start/ })).toBeDefined()
+  await game.unmount()
+})
+
+test('Pet Run off the terminal is an SVG with Jump and Again buttons', async $ => {
+  for (const surface of ['desktop', 'mobile'] as const) {
+    const game = await $.ui.mount({ ...PANE, requestId: 'pets-run', surface })
+
+    expect(await game.find({ type: 'Raster' })).toBeUndefined()
+    expect((await game.find({ type: 'Svg' }))?.props.source).toMatch(/^<svg /)
+    expect(await game.find({ type: 'Button', key: 'jump' })).toBeDefined()
+    expect(await game.find({ type: 'Button', key: 'restart' })).toBeDefined()
+    await game.unmount()
+  }
 })
