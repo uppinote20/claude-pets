@@ -9,6 +9,7 @@
  * @tested tests/pet.test.ts
  */
 import type { Pet } from '../types'
+import type { Daypart, Nature } from './nature'
 import type { Accessory, Species, Sprite } from './species'
 
 export type Size = 'small' | 'medium'
@@ -59,6 +60,33 @@ const HEART = ['hh.hh', 'hhhhh', '.hhh.', '..h..'] as const
 /** The happy sparkle, and a star's twinkle. */
 const SPARKLE = ['.s.', 'sws', '.s.'] as const
 const GIFT = ['y.y..', '.y...', 'ppypp', 'ppypp', 'ppypp'] as const
+
+/** What each nature holds up while a tool runs. */
+const PROPS: Readonly<Record<Nature, { rows: readonly string[]; ink: Readonly<Record<string, number>> } | null>> = {
+  worker: { rows: ['kkkkk', 'kbbbk', 'kbbbk', 'kkkkk', '.kkk.'], ink: { k: 0x8a8a9a, b: 0x87d7ff } },
+  scholar: { rows: ['bbwbb', 'bbwbb', 'bbwbb'], ink: { b: 0x6fa8dc, w: 0xfffaf0 } },
+  sweetie: { rows: ['h.h', 'hhh', '.h.'], ink: { h: 0xff87af } },
+  gamer: { rows: ['.....', 'kkkkk', 'kgkrk', 'kkkkk'], ink: { k: 0x8a8a9a, g: 0x7cc576, r: 0xff6b8a } },
+  curious: null,
+}
+
+/** What stands in each nature's corner of the yard, on the grass. */
+const DECOR: Readonly<Record<Nature, { rows: readonly string[]; ink: Readonly<Record<string, number>> } | null>> = {
+  worker: { rows: ['.kk.', 'rrrr', 'rkkr'], ink: { k: 0x5f5f5f, r: 0xd9534f } },
+  scholar: { rows: ['pppp', 'gggg', 'bbbb'], ink: { p: 0xffafd7, g: 0x7cc576, b: 0x6fa8dc } },
+  sweetie: { rows: ['p...p', 'yp.py', '.g.g.'], ink: { p: 0xffafd7, y: 0xffe36e, g: 0x7cc576 } },
+  gamer: null,
+  curious: null,
+}
+
+const SKY: Readonly<Record<Daypart, { rows: readonly string[]; ink: Readonly<Record<string, number>> }>> = {
+  night: { rows: ['.mm', 'm..', 'm..', '.mm'], ink: { m: 0xfff3b0 } },
+  morning: { rows: ['.s.', 'sss', '.s.'], ink: { s: 0xffc46b } },
+  day: { rows: ['.ss.', 'ssss', 'ssss', '.ss.'], ink: { s: 0xffe36e } },
+  evening: { rows: ['.ss.', 'ssss'], ink: { s: 0xff9a76 } },
+}
+const STARS = [3, 11, 19, 27, 35] as const
+const BALL = ['rw', 'wr'] as const
 const GIFT_INK = { p: 0xff9ec4, y: 0xffe36e } as const
 /** Columns kept free beside the sprite for the heart or sparkle. */
 const BADGE = 6
@@ -125,6 +153,10 @@ export type PaintOptions = {
   /** The SVG card draws its own grass, so it asks for none. */
   withGrass?: boolean
   stage?: Stage
+  /** What it carries while it works, and what stands in its corner of the yard. */
+  nature?: Nature
+  /** The sun, the evening sun, or the moon and stars, by the local hour. */
+  daypart?: Daypart
 }
 
 /** The accessory's rows and left edge for the way the pet faces: mirrored with it. */
@@ -142,7 +174,7 @@ export function worn(accessory: Accessory, spriteWidth: number, dir: Pet['dir'])
  * at its stage, its heart or sparkle, and a strip of grass with two flowers and its shadow.
  */
 export function paint(one: Pet, kind: Species, size: Size, width: number, steps: number, options: PaintOptions = {}): Scene {
-  const { isSad = false, withGrass = true, stage = 'baby' } = options
+  const { isSad = false, withGrass = true, stage = 'baby', nature = 'curious', daypart = 'day' } = options
   const look = LOOKS[size]
   const sprite = spriteOf(kind, size)
   const height = sceneHeight(kind, size)
@@ -180,6 +212,21 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
     put(width - 6, grassTop, PALETTE.yellow)
   }
 
+  // The sky in the top right corner, and at night a few stars that twinkle.
+  const sky = SKY[daypart]
+  stamp(sky.rows, sky.ink, width - (sky.rows[0]?.length ?? 0) - 1, 0)
+  if (daypart === 'night') {
+    STARS.forEach((x, at) => {
+      if ((one.frame + at) % 5 !== 0 && x < width - 6) {
+        put(x, at % 2, 0xfffaf0)
+      }
+    })
+  }
+  const decor = DECOR[nature]
+  if (decor !== null && withGrass) {
+    stamp(decor.rows, decor.ink, width - (decor.rows[0]?.length ?? 0) - 2, grassTop - decor.rows.length)
+  }
+
   const left = Math.round((one.x / steps) * Math.max(0, width - spriteWidth - BADGE))
   const isBouncy = one.mood === 'walk' || one.mood === 'happy' || one.mood === 'gift'
   const rest = grassTop - sprite.rows.length
@@ -210,6 +257,15 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
 
   if (one.mood === 'love') {
     stamp(HEART, { h: PALETTE.heart }, left + spriteWidth + 1, Math.max(0, top - 1 + (one.frame % 2)))
+  }
+  const prop = PROPS[nature]
+  if (one.mood === 'work' && prop !== null) {
+    stamp(prop.rows, prop.ink, left + spriteWidth + 1, Math.max(0, top + 1))
+  }
+  // A gamer kicks a ball along ahead of it.
+  if (nature === 'gamer' && one.mood === 'walk') {
+    const ahead = one.dir === 1 ? left + spriteWidth + 1 : left - 3
+    stamp(one.frame % 2 === 0 ? BALL : [BALL[1], BALL[0]], { r: 0xff6b8a, w: 0xfffaf0 }, ahead, grassTop - 2)
   }
   if (one.mood === 'gift') {
     // The gift it found, bobbing beside it.
@@ -269,9 +325,17 @@ export function hex(color: number): string {
 }
 
 /** What the SVG card shows besides the yard: the name tag, what the pet says, and a line of counts. */
-export type Caption = { name: string; level: number; progress: number; says: string; tally: string }
+export type Caption = { name: string; level: number; progress: number; says: string; tally: string; daypart?: Daypart }
 
 const CARD = { fill: '#fffaf3', edge: '#f3e2d2', ink: '#6b4f4f', tag: '#f48fb1', bubble: '#ffffff', grass: '#b5dcae', shadow: '#8fbf8a' } as const
+
+/** The card's backdrop and the tally's color through the day: cream, a warm morning, peach, night blue. */
+const CARD_SKY: Readonly<Record<Daypart, { fill: string; edge: string; tally: string }>> = {
+  morning: { fill: '#fff6e6', edge: '#f3e2c8', tally: CARD.ink },
+  day: { fill: CARD.fill, edge: CARD.edge, tally: CARD.ink },
+  evening: { fill: '#ffe8de', edge: '#f2cfc0', tally: CARD.ink },
+  night: { fill: '#2b3050', edge: '#3d4470', tally: '#d8dcf0' },
+}
 
 function escapeXml(text: string): string {
   return text.replace(/[&<>"']/g, mark => `&#${mark.codePointAt(0)};`)
@@ -306,7 +370,8 @@ export function toSvg(scene: Scene, size: Size, caption: Caption): string {
   const text = (x: number, y: number, body: string, attrs: string) =>
     `<text x="${x}" y="${y}" font-family="ui-rounded, 'SF Pro Rounded', system-ui, sans-serif" font-size="${font}" ${attrs}>${escapeXml(body)}</text>`
 
-  parts.push(`<rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="${unit * 3}" fill="${CARD.fill}" stroke="${CARD.edge}"/>`)
+  const backdrop = CARD_SKY[caption.daypart ?? 'day']
+  parts.push(`<rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="${unit * 3}" fill="${backdrop.fill}" stroke="${backdrop.edge}"/>`)
 
   // A rounded mound of grass with a scalloped top, three flowers, and the pet's shadow.
   const groundTop = band + (scene.pixels.length - scene.ground) * unit
@@ -373,7 +438,7 @@ export function toSvg(scene: Scene, size: Size, caption: Caption): string {
   }
 
   // The counts under the grass, centred.
-  parts.push(text(width / 2, height - pad / 2 - 4, caption.tally, `fill="${CARD.ink}" fill-opacity="0.6" text-anchor="middle"`))
+  parts.push(text(width / 2, height - pad / 2 - 4, caption.tally, `fill="${backdrop.tally}" fill-opacity="0.7" text-anchor="middle"`))
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,

@@ -93,6 +93,22 @@ Eight stages, each opened by clearing the one before (`/pet quest 3` replays one
 
 Stages are tile maps in [`hooks/quest.ts`](hooks/quest.ts), one character per 4×4 tile, so all eight take about 5 KB. A test searches every stage for a way through, so a stage that cannot be cleared fails the build.
 
+## Nature and rhythm
+
+As it grows the pet takes after you. Its **nature** comes from what it has seen most, once it has seen enough:
+
+| Nature | From | How it shows |
+|--------|------|--------------|
+| worker | tool calls | holds up a laptop while tools run, keeps a toolbox in its corner |
+| scholar | turns and output | ambles, stops now and then to read, keeps a stack of books |
+| sweetie | pats | pauses for a heart, keeps flowers |
+| gamer | Pet Run and Pet Quest snacks | runs faster and kicks a ball along, holds a game pad while tools run |
+| curious | (until one side stands out) | sniffs around |
+
+Its **rhythm** comes from the hours your finished turns keep: night owl, early bird, daytimer or evening type. Both show in the stats and in `/pet status`, and the pet muses about them now and then.
+
+The yard follows your clock: the morning sun, the midday sun, the evening sun, the moon and stars at night (the card off the terminal turns night blue). The local time comes from `date` on your machine.
+
 ## Luck
 
 - **Gifts**: one finished turn in ten turns up a gift: mostly a cookie (+5 xp), sometimes a toy (+15) or a treasure (+40), now and then the jackpot (+100), and one gift in a hundred is a sparkle stone.

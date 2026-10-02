@@ -23,6 +23,8 @@ import type { Pet, PetProfile, PetSize, PetStats, QuestView, RunView } from '../
 import { DEFAULT_SIZE, SIZES, cardWidthFor, lookOf, pixelsSvg, stageOf, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
 import { QUEST_HEIGHT, QUEST_TICK_MS, STAGES, advanceQuest, jumpQuest, newQuest, paintQuest, questScore } from './quest'
 import type { Quest } from './quest'
+import { DAYPARTS, daypartOf, musingOf, natureOf, rhythmOf } from './nature'
+import type { Daypart, Nature } from './nature'
 import { GIFT_CHANCE, LUCKY_PAT_CHANCE, SHINY_CHANCE, giftOf, worthOf } from './luck'
 import { RUN_HEIGHT, RUN_TICK_MS, advance, jump, newRun, paintRun, scoreOf } from './run'
 import type { Run } from './run'
@@ -64,7 +66,7 @@ const PANEL_BAR = 20
 
 const PASTEL = { yellow: '#ffd787', pink: '#ffafd7', green: '#afd7af', ink: '#3a2a2a', gray: '#b2b2b2', dim: '#5f5f5f' } as const
 const NEWBORN: Pet = { x: 0, dir: 1, frame: 0, mood: 'walk', hold: 0, idle: 0 }
-const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false }
+const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0] }
 const STRANGER: PetProfile = { species: DEFAULT_SPECIES, size: DEFAULT_SIZE, pets: {} }
 
 const pet = atom({ plugin: 'pets', key: 'pet' } as const, NEWBORN)
@@ -81,6 +83,15 @@ let isRemote = false
 // The level last seen for the pet that is out, so a level-up is announced once, whether it came
 // from a turn, a pat or a run.
 let shownLevel = 1
+// The host's offset from UTC in minutes: the module's own clock is UTC, so `date` says.
+let utcOffset = 0
+// The engine's clock as of the last tick (tests move it with mock.clock).
+let clockNow = Date.now()
+
+/** The quarter of the day it is where the person is. */
+function daypartNow(): Daypart {
+  return daypartOf(new Date(clockNow + utcOffset * 60_000).getUTCHours())
+}
 // Pet Quest's stage in play, as Pet Run's course.
 let quest: Quest | null = null
 let questTicker: { cancel: () => void } | null = null
@@ -170,6 +181,7 @@ function toStats(fields: Record<string, unknown>): PetStats {
     gifts: count(fields.gifts),
     bonus: count(fields.bonus),
     shiny: fields.shiny === true,
+    hours: DAYPARTS.map((_, at) => count(Array.isArray(fields.hours) ? fields.hours[at] : 0)),
   }
 }
 
@@ -228,8 +240,16 @@ function statusOf(who: PetProfile): string {
     // Snacks from both games, one count.
     ...(stats.snacks === 0 ? [] : [`${stats.snacks} snacks`]),
     ...(stats.gifts === 0 ? [] : [`${stats.gifts} gifts found`]),
+    `${natureLine(stats)}`,
     ...(others.length === 0 ? [] : [`Also: ${others.join(', ')}`]),
   ].join(' · ')
+}
+
+/** Its nature, and its rhythm once it shows: `worker · night owl`. */
+function natureLine(stats: PetStats): string {
+  const rhythm = rhythmOf(stats.hours)
+
+  return `${natureOf(stats)}${rhythm === null ? '' : ` · ${rhythm}`}`
 }
 
 /** What a typed name is kept as: one line, no control characters, at most `NAME_LIMIT` characters. */
@@ -242,7 +262,11 @@ function act(one: Pet, mood: Pet['mood'], hold: number): Pet {
 }
 
 /** One tick: a held mood runs out, a quiet session naps, else it paces. */
-function step(one: Pet): Pet {
+/**
+ * One tick, by its nature: a scholar ambles and stops to read, a gamer runs, a sweetie
+ * pauses for a heart. Pauses keep counting toward its nap.
+ */
+function step(one: Pet, nature: Nature = 'curious'): Pet {
   const frame = one.frame + 1
 
   if (one.hold > 1) {
@@ -258,10 +282,18 @@ function step(one: Pet): Pet {
     return { ...one, frame, mood: 'sleep' }
   }
 
-  const x = Math.min(STEPS, Math.max(0, one.x + one.dir))
+  const idle = one.idle + 1
+  if (nature === 'scholar' && frame % 40 === 0) {
+    return { ...one, frame, mood: 'work', hold: 6, idle }
+  }
+  if (nature === 'sweetie' && frame % 30 === 0) {
+    return { ...one, frame, mood: 'love', hold: 4, idle }
+  }
+  const pace = nature === 'scholar' ? (frame % 2 === 0 ? 1 : 0) : nature === 'gamer' && frame % 3 === 0 ? 2 : 1
+  const x = Math.min(STEPS, Math.max(0, one.x + one.dir * pace))
   const dir = x === 0 ? 1 : x === STEPS ? -1 : one.dir
 
-  return { ...one, frame, x, dir, mood: 'walk', idle: one.idle + 1 }
+  return { ...one, frame, x, dir, mood: 'walk', idle }
 }
 
 function saysOf(one: Pet, who: PetProfile, isSad: boolean): string {
@@ -278,8 +310,13 @@ function saysOf(one: Pet, who: PetProfile, isSad: boolean): string {
       return `${speciesOf(who).purr} ×${statsOf(who).pats}`
     case 'gift':
       return 'a gift!'
-    case 'walk':
-      return isSad ? 'limits are close…' : ''
+    case 'walk': {
+      if (isSad) {
+        return 'limits are close…'
+      }
+      // Now and then it muses, by its nature and the hour.
+      return one.frame % 40 < 6 && one.frame > 0 ? musingOf(natureOf(statsOf(who)), daypartNow(), Math.floor(one.frame / 40)) : ''
+    }
   }
 }
 
@@ -328,6 +365,14 @@ async function grow($: EngineInterface, change: (stats: PetStats) => PetStats): 
   await update($, profile, () => now)
 
   return now
+}
+
+/** The pet's own tick: a step by its nature. */
+async function tickPet($: EngineInterface): Promise<void> {
+  const nature = natureOf(statsOf(await read($, profile)))
+  clockNow = await $.clock.now()
+
+  await update($, pet, one => step(one, nature))
 }
 
 function viewOf(run: Run): RunView {
@@ -491,7 +536,16 @@ export const register: Register = (on, options) => {
     // same one roll at being shiny that `/pet choose` gives a pet met for the first time.
     const met = kept.species in kept.pets ? kept : await grow($, stats => (lucky(SHINY_CHANCE) ? { ...stats, shiny: true } : stats))
     shownLevel = levelOf(statsOf(met))
-    $.clock.every(TICK_MS, () => void update($, pet, step))
+    try {
+      const { exitCode, stdout } = await $.process.run(['date', '+%z'], { timeoutMs: 2000 })
+      const offset = /^([+-])(\d\d)(\d\d)/.exec(stdout.trim())
+      if (exitCode === 0 && offset !== null) {
+        utcOffset = (offset[1] === '-' ? -1 : 1) * (Number(offset[2]) * 60 + Number(offset[3]))
+      }
+    } catch {
+      // No `date` (Windows): the hours are UTC's.
+    }
+    $.clock.every(TICK_MS, () => void tickPet($))
 
     return next(e)
   })
@@ -634,6 +688,7 @@ export const register: Register = (on, options) => {
 
     // Now and then a finished turn of the main conversation turns up a gift.
     const gift = isMain && lucky(GIFT_CHANCE) ? giftOf(Math.random()) : null
+    const part = daypartNow()
     let worth = { xp: 0, makesShiny: false }
     const now = await grow($, stats => {
       worth = gift === null ? worth : worthOf(gift, stats.shiny)
@@ -646,6 +701,7 @@ export const register: Register = (on, options) => {
         gifts: stats.gifts + (gift === null ? 0 : 1),
         bonus: stats.bonus + worth.xp,
         shiny: stats.shiny || worth.makesShiny,
+        hours: isMain ? stats.hours.map((count, at) => (DAYPARTS[at] === part ? count + 1 : count)) : stats.hours,
       }
     })
 
@@ -688,7 +744,7 @@ export const register: Register = (on, options) => {
       const isBeside = !isDocked && e.props.bodyColumns >= fewest + PANEL + 4
       const room = isBeside ? e.props.bodyColumns - PANEL - 4 : e.props.bodyColumns - 2
       const columns = Math.max(fewest, Math.min(MAX_YARD, room))
-      const scene = paint(one, kind, who.size, columns, STEPS, { isSad, stage: stageOf(levelOf(stats)) })
+      const scene = paint(one, kind, who.size, columns, STEPS, { isSad, stage: stageOf(levelOf(stats)), nature: natureOf(stats), daypart: daypartNow() })
       const cells = toCells(scene.pixels)
       const width = cells[0]?.length ?? 0
       const level = levelOf(stats)
@@ -709,6 +765,7 @@ export const register: Register = (on, options) => {
             <Text color={PASTEL.pink}>{wide}</Text>
             <Text color={PASTEL.dim}>{rest}</Text>
           </Box>
+          {who.size !== 'small' && <Text color={PASTEL.pink} dimColor>{natureLine(stats)}</Text>}
           {who.size === 'small' ? (
             <>
               <Text color={PASTEL.gray}>{`${stats.tools} tools · ${stats.turns} turns`}</Text>
@@ -757,8 +814,8 @@ export const register: Register = (on, options) => {
     const { Svg } = $.ui.resolve(e)
     const tally = tallyLine(stats)
     const across = Math.max(fewest, cardWidthFor(who.size, tally), Math.min(MAX_CARD, Math.floor((e.props.bodyColumns * CELL_PX) / unit) - 4))
-    const scene = paint(one, kind, who.size, across, STEPS, { isSad, withGrass: false, stage: stageOf(levelOf(stats)) })
-    const caption = { name: stats.name, level: levelOf(stats), progress: progressOf(stats), says, tally }
+    const scene = paint(one, kind, who.size, across, STEPS, { isSad, withGrass: false, stage: stageOf(levelOf(stats)), nature: natureOf(stats), daypart: daypartNow() })
+    const caption = { name: stats.name, level: levelOf(stats), progress: progressOf(stats), says, tally, daypart: daypartNow() }
     const alt = `${titleOf(who)}, Lv ${levelOf(stats)}${says === '' ? '' : `: ${says}`}`
 
     return <Svg source={toSvg(scene, who.size, caption)} alt={alt} />

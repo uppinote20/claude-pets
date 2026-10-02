@@ -12,6 +12,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { giftOf, worthOf } from '../hooks/luck'
+import { daypartOf, natureOf, rhythmOf } from '../hooks/nature'
 import { QUEST_ROWS, STAGES, advanceQuest, jumpQuest, newQuest } from '../hooks/quest'
 import type { Quest } from '../hooks/quest'
 import { advance, jump, newRun, scoreOf } from '../hooks/run'
@@ -83,7 +84,7 @@ test('the pet paces, takes a pat, a name and a species, and leaves when told', {
   // The second pat is the 26th point of experience.
   expect(await run('pat')).toBe('초코 is pleased.')
   expect(await pane.find({ type: 'Text', text: /^ Lv 2 / })).toBeDefined()
-  expect(await run('status')).toBe('초코 the cat · Lv 2 · 26 xp (next at 100) · 3 pats, 0 turns, 20 tool calls, 0 output tokens')
+  expect(await run('status')).toBe('초코 the cat · Lv 2 · 26 xp (next at 100) · 3 pats, 0 turns, 20 tool calls, 0 output tokens · curious')
 
   expect(await run('name  나비\u0007 ')).toBe('초코 is now 나비.')
   expect(await pane.find({ type: 'Text', text: ' 나비 ' })).toBeDefined()
@@ -102,7 +103,7 @@ test('the pet paces, takes a pat, a name and a species, and leaves when told', {
   // A subagent's turn adds its tokens but is no turn of the conversation's.
   await $.turn.complete({ ...turn, agentId: 'a1', usage: { ...usage, output_tokens: 500 } })
   expect(await run('status')).toBe(
-    'The chick · Lv 2 · 27 xp (next at 100) · 0 pats, 1 turns, 0 tool calls, 22.0K output tokens · Also: 나비 the cat Lv 2',
+    'The chick · Lv 2 · 27 xp (next at 100) · 0 pats, 1 turns, 0 tool calls, 22.0K output tokens · curious · Also: 나비 the cat Lv 2',
   )
   expect(await run('choose cat')).toBe('나비 is out.')
 
@@ -636,4 +637,38 @@ test('a shiny pet is drawn in its shiny colors and says so', async ($, on) => {
   const pane = await $.ui.mount({ ...PANE, surface: 'terminal', props: { ...PROPS, bodyColumns: 100 } })
   expect(await pane.find({ type: 'Text', text: 'SLIME ✦' })).toBeDefined()
   await pane.unmount()
+})
+
+test('a nature shows once one side of it stands out, and a rhythm once its hours do', () => {
+  const none = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0] }
+
+  expect(natureOf({ ...none, tools: 30 })).toBe('curious')
+  expect(natureOf({ ...none, tools: 300, turns: 10 })).toBe('worker')
+  expect(natureOf({ ...none, turns: 40, tokens: 90_000, tools: 50 })).toBe('scholar')
+  expect(natureOf({ ...none, pats: 60, tools: 20 })).toBe('sweetie')
+  expect(natureOf({ ...none, snacks: 120, tools: 40 })).toBe('gamer')
+  expect(natureOf({ ...none, tools: 100, pats: 50, snacks: 100 })).toBe('curious')
+
+  expect(rhythmOf([3, 2, 2, 2])).toBeNull()
+  expect(rhythmOf([20, 4, 4, 6])).toBe('night owl')
+  expect(rhythmOf([2, 14, 4, 6])).toBe('early bird')
+  expect([0, 5, 6, 11, 12, 17, 18, 23].map(daypartOf)).toEqual(['night', 'night', 'morning', 'morning', 'day', 'day', 'evening', 'evening'])
+})
+
+test('a worker shows its nature in the stats, and the card turns night blue at night', async ($, on) => {
+  // 02:00 UTC, the host's offset unknown here, so UTC.
+  const clock = mock.clock(on, { now: Date.UTC(2026, 9, 2, 2, 0) })
+  mock.store(on, { profile: { species: 'cat', pets: { cat: { name: '초코', tools: 400 } } } })
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await clock.advance(600)
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal', props: { ...PROPS, bodyColumns: 100 } })
+  expect(await pane.find({ type: 'Text', text: 'worker' })).toBeDefined()
+  await pane.unmount()
+
+  const card = await $.ui.mount({ ...PANE, surface: 'mobile' })
+  expect((await card.find({ type: 'Svg' }))?.props.source).toContain('#2b3050')
+  await card.unmount()
 })
