@@ -6,6 +6,10 @@
 .vscode/
 *.swp
 
+# Private docs (symlinked)
+/.private/
+/docs
+
 # OS
 .DS_Store
 Thumbs.db
