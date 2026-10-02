@@ -133,7 +133,9 @@ test('surfaces without Raster draw the pet as an SVG card', async $ => {
     expect(await pane.find({ type: 'Raster' })).toBeUndefined()
     expect(card?.props.alt).toBe('The cat, Lv 1')
     expect(card?.props.source).toMatch(/^<svg [^>]*width="\d+"/)
-    expect(card?.props.source).toContain('#ffd787')
+    // The baby cat has hi-res art: its fur, outline and glints come from it.
+    expect(card?.props.source).toContain('#ffcf7d')
+    expect(card?.props.source).toContain('#6b4636')
     await pane.unmount()
   }
 })
@@ -891,4 +893,29 @@ test('the card grass takes the shade of the leaning, as the pane grass does', { 
   // The plain green of a pet that leans nowhere is gone from the mound.
   expect(source).not.toContain('fill="#b5dcae"')
   await card.unmount()
+})
+
+test('with art set to pixel the card keeps the 12×12 sprite', { options: { art: 'pixel' } }, async $ => {
+  const card = await $.ui.mount({ ...PANE, surface: 'mobile' })
+
+  expect((await card.find({ type: 'Svg' }))?.props.source).toContain('#ffd787')
+  expect((await card.find({ type: 'Svg' }))?.props.source).not.toContain('#6b4636')
+  await card.unmount()
+})
+
+test('kitty draws the yard as an image with the hi-res pet; other terminals keep half blocks', async ($, on) => {
+  mock.env(on, { TERM: 'xterm-kitty' })
+  mock.store(on)
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await pane.find({ type: 'Raster' })).toBeUndefined()
+  const image = await pane.find({ type: 'Image', key: 'pet' })
+  expect(image?.props.columns).toBe(38)
+  expect(image?.props.rows).toBe(8)
+  expect(image?.props.source).toMatchObject({ width: 38 * 12, height: 16 * 12 })
+  expect(await pane.find({ type: 'Raster' })).toBeUndefined()
+  await pane.unmount()
 })
