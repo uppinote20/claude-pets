@@ -99,13 +99,13 @@ As it grows the pet takes after you. Its **nature** comes from what it has seen 
 
 | Nature | From | How it shows |
 |--------|------|--------------|
-| worker | tool calls | holds up a laptop while tools run, keeps a toolbox in its corner |
-| scholar | turns and output | ambles, stops now and then to read, keeps a stack of books |
-| sweetie | pats | pauses for a heart, keeps flowers |
-| gamer | Pet Run and Pet Quest snacks | runs faster and kicks a ball along, holds a game pad while tools run |
+| worker | tool calls | carries a pickaxe, and swings it while tools run |
+| scholar | turns and output | wears a graduation cap, ambles and stops now and then to read |
+| sweetie | pats | wears a flower pin, pauses for a heart |
+| gamer | Pet Run and Pet Quest snacks | wears a headset, runs faster and kicks a ball along |
 | curious | (until one side stands out) | sniffs around |
 
-Its **rhythm** comes from the hours your finished turns keep: night owl, early bird, daytimer or evening type. Both show in the stats and in `/pet status`, and the pet muses about them now and then.
+Its **rhythm** comes from the hours your finished turns keep: night owl, early bird, daytimer or evening type. A cap, a headset or a pin takes the place of a grown pet's head accessory. Both show in the stats and in `/pet status`, and the pet muses about them now and then.
 
 The yard follows your clock: the morning sun, the midday sun, the evening sun, the moon and stars at night (the card off the terminal turns night blue). The local time comes from `date` on your machine.
 

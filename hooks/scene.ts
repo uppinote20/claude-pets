@@ -10,7 +10,7 @@
  */
 import type { Pet } from '../types'
 import type { Daypart, Nature } from './nature'
-import type { Accessory, Species, Sprite } from './species'
+import type { Accessory, Head, Species, Sprite } from './species'
 
 export type Size = 'small' | 'medium'
 
@@ -63,19 +63,11 @@ const GIFT = ['y.y..', '.y...', 'ppypp', 'ppypp', 'ppypp'] as const
 
 /** What each nature holds up while a tool runs. */
 const PROPS: Readonly<Record<Nature, { rows: readonly string[]; ink: Readonly<Record<string, number>> } | null>> = {
-  worker: { rows: ['kkkkk', 'kbbbk', 'kbbbk', 'kkkkk', '.kkk.'], ink: { k: 0x8a8a9a, b: 0x87d7ff } },
+  // The worker's is its pickaxe, swung while tools run.
+  worker: null,
   scholar: { rows: ['bbwbb', 'bbwbb', 'bbwbb'], ink: { b: 0x6fa8dc, w: 0xfffaf0 } },
   sweetie: { rows: ['h.h', 'hhh', '.h.'], ink: { h: 0xff87af } },
   gamer: { rows: ['.....', 'kkkkk', 'kgkrk', 'kkkkk'], ink: { k: 0x8a8a9a, g: 0x7cc576, r: 0xff6b8a } },
-  curious: null,
-}
-
-/** What stands in each nature's corner of the yard, on the grass. */
-const DECOR: Readonly<Record<Nature, { rows: readonly string[]; ink: Readonly<Record<string, number>> } | null>> = {
-  worker: { rows: ['.kk.', 'rrrr', 'rkkr'], ink: { k: 0x5f5f5f, r: 0xd9534f } },
-  scholar: { rows: ['pppp', 'gggg', 'bbbb'], ink: { p: 0xffafd7, g: 0x7cc576, b: 0x6fa8dc } },
-  sweetie: { rows: ['p...p', 'yp.py', '.g.g.'], ink: { p: 0xffafd7, y: 0xffe36e, g: 0x7cc576 } },
-  gamer: null,
   curious: null,
 }
 
@@ -86,6 +78,68 @@ const SKY: Readonly<Record<Daypart, { rows: readonly string[]; ink: Readonly<Rec
   evening: { rows: ['.ss.', 'ssss'], ink: { s: 0xff9a76 } },
 }
 const STARS = [3, 11, 19, 27, 35] as const
+
+/** Pixels laid over the sprite, facing left, from its top left. */
+type Overlay = { rows: readonly string[]; x: number; y: number; ink: Readonly<Record<string, number>> }
+
+const GEAR_INK = {
+  k: 0x4f5584, // cap, headset band
+  h: 0x8a90b8, // the cap's top, catching the light
+  y: 0xffd447, // tassel
+  r: 0xff6b8a, // headset cups
+  g: 0xc0c4d0, // pickaxe head
+  b: 0x9a6a44, // pickaxe handle
+  p: 0xffafd7, // hairpin petals
+  c: 0xffe36e, // hairpin heart
+} as const
+
+/**
+ * What its nature puts on it, by where its head is: the worker's pickaxe held out in front
+ * (raised and lowered while tools run), the scholar's cap, the gamer's headset, the
+ * sweetie's flower pin. Nothing for the curious.
+ */
+export function gearOf(nature: Nature, head: Head, isBig: boolean, isWorking: boolean, frame: number): Overlay[] {
+  const middle = Math.round((head.left + head.right) / 2)
+
+  switch (nature) {
+    case 'worker': {
+      const swing = isWorking && frame % 2 === 1 ? -1 : 0
+      const rows = isBig ? ['.ggg.', 'gg.gg', 'g.b.g', '..b..', '..b..'] : ['ggg', 'g.g', '.b.']
+
+      return [{ rows, x: head.left - (isBig ? 4 : 3), y: head.eye + swing + (isBig ? 1 : 0), ink: GEAR_INK }]
+    }
+    case 'scholar': {
+      const rows = isBig ? ['...h...', 'hhhhhhh', '.kkkkky', '......y'] : ['.hhh.', 'hhhhh', '.kkky']
+      const width = rows[1]?.length ?? 0
+
+      return [{ rows, x: middle - Math.floor(width / 2), y: head.top - (isBig ? 2 : 1), ink: GEAR_INK }]
+    }
+    case 'gamer': {
+      const across = head.right - head.left + 1
+      const band = '.'.repeat(2) + 'k'.repeat(Math.max(0, across - 4)) + '.'.repeat(2)
+      const side = '.k' + '.'.repeat(Math.max(0, across - 4)) + 'k.'
+      const cup = 'rr' + '.'.repeat(Math.max(0, across - 4)) + 'rr'
+      const reach = Math.max(1, head.eye - head.top)
+      const rows = [band, ...Array.from({ length: reach - 1 }, () => side), cup, ...(isBig ? [cup] : [])]
+
+      return [{ rows, x: head.left, y: head.top - 1, ink: GEAR_INK }]
+    }
+    case 'sweetie':
+      return [{ rows: isBig ? ['p.p', '.c.', 'p.p'] : ['pc'], x: head.right - (isBig ? 3 : 2), y: head.top - 1, ink: GEAR_INK }]
+    case 'curious':
+      return []
+  }
+}
+
+/** An overlay's rows and left edge for the way the pet faces: mirrored with it. */
+function facing(overlay: Overlay, spriteWidth: number, dir: Pet['dir']): Overlay {
+  if (dir !== 1) {
+    return overlay
+  }
+  const across = overlay.rows[0]?.length ?? 0
+
+  return { ...overlay, rows: overlay.rows.map(row => [...row].reverse().join('')), x: spriteWidth - overlay.x - across }
+}
 const BALL = ['rw', 'wr'] as const
 const GIFT_INK = { p: 0xff9ec4, y: 0xffe36e } as const
 /** Columns kept free beside the sprite for the heart or sparkle. */
@@ -222,10 +276,6 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
       }
     })
   }
-  const decor = DECOR[nature]
-  if (decor !== null && withGrass) {
-    stamp(decor.rows, decor.ink, width - (decor.rows[0]?.length ?? 0) - 2, grassTop - decor.rows.length)
-  }
 
   const left = Math.round((one.x / steps) * Math.max(0, width - spriteWidth - BADGE))
   const isBouncy = one.mood === 'walk' || one.mood === 'happy' || one.mood === 'gift'
@@ -239,11 +289,19 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
     }
   }
   stamp(spriteRows(one, sprite, isSad), kind.ink, left, top)
-  if (stage !== 'baby') {
+  // A cap, a headset or a pin takes the place of a grown pet's head accessory.
+  const gear = gearOf(nature, kind.head[look.sprite], look.sprite === 'big', one.mood === 'work', one.frame)
+  const isHeadCovered = nature === 'scholar' || nature === 'gamer' || nature === 'sweetie'
+  if (stage !== 'baby' && !(isHeadCovered && kind.accessory.slot === 'head')) {
     const accessory = kind.accessory[look.sprite]
     const { rows, x } = worn(accessory, spriteWidth, one.dir)
 
     stamp(rows, accessory.ink, left + x, top + accessory.y)
+  }
+  for (const overlay of gear) {
+    const placed = facing(overlay, spriteWidth, one.dir)
+
+    stamp(placed.rows, placed.ink, left + placed.x, top + placed.y)
   }
   // A star twinkles beside its head every other tick, high then low, unless a heart or a
   // sparkle already shows there. The head is on the side it faces; with no room there, at the
