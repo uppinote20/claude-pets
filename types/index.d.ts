@@ -22,6 +22,16 @@ export type PetStats = {
   /** Snacks eaten in Pet Run, and its best score there. */
   snacks: number
   best: number
+  /** Pet Quest stages cleared, counted from the first. */
+  cleared: number
+}
+
+/** What the Pet Quest pane's text shows. */
+export type QuestView = {
+  stage: number
+  phase: 'ready' | 'running' | 'clear' | 'over'
+  score: number
+  snacks: number
 }
 
 /** What the Pet Run pane's text shows: the game's own state lives in the hooks module. */
@@ -43,6 +53,6 @@ export type PetProfile = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'pets': { pet: Pet; profile: PetProfile; isWorried: boolean; run: RunView }
+    'pets': { pet: Pet; profile: PetProfile; isWorried: boolean; run: RunView; quest: QuestView }
   }
 }

@@ -17,8 +17,10 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Pet, PetProfile, PetSize, PetStats, RunView } from '../types'
+import type { Pet, PetProfile, PetSize, PetStats, QuestView, RunView } from '../types'
 import { DEFAULT_SIZE, SIZES, cardWidthFor, lookOf, pixelsSvg, stageOf, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
+import { QUEST_HEIGHT, QUEST_TICK_MS, STAGES, advanceQuest, jumpQuest, newQuest, paintQuest, questScore } from './quest'
+import type { Quest } from './quest'
 import { RUN_HEIGHT, RUN_TICK_MS, advance, jump, newRun, paintRun, scoreOf } from './run'
 import type { Run } from './run'
 import { DEFAULT_SPECIES, SPECIES } from './species'
@@ -27,6 +29,8 @@ import type { Species } from './species'
 const PANE = 'pets'
 const PLAY = 'pets-run'
 const PLAY_TITLE = 'Pet Run'
+const QUEST = 'pets-quest'
+const QUEST_TITLE = 'Pet Quest'
 /** The Pet Run course's width bounds, in pixels (terminal columns). */
 const RUN_MIN = 40
 const RUN_MAX = 80
@@ -49,7 +53,7 @@ const XP_PER_SNACK = 1
 const TOKENS_PER_XP = 1000
 const XP_CURVE = 25
 /** What follows `/pet`: the command's description and its usage line are both built from this. */
-const VERBS = ['pat', 'name <name>', 'choose <species>', 'size <small|medium>', 'play', 'status', 'bye'] as const
+const VERBS = ['pat', 'name <name>', 'choose <species>', 'size <small|medium>', 'play', 'quest [stage]', 'status', 'bye'] as const
 const BAR_CELLS = 5
 /** The stats column beside the yard: its width, and the bar's inside it. */
 const PANEL = 28
@@ -57,7 +61,7 @@ const PANEL_BAR = 20
 
 const PASTEL = { yellow: '#ffd787', pink: '#ffafd7', green: '#afd7af', ink: '#3a2a2a', gray: '#b2b2b2', dim: '#5f5f5f' } as const
 const NEWBORN: Pet = { x: 0, dir: 1, frame: 0, mood: 'walk', hold: 0, idle: 0 }
-const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0 }
+const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0 }
 const STRANGER: PetProfile = { species: DEFAULT_SPECIES, size: DEFAULT_SIZE, pets: {} }
 
 const pet = atom({ plugin: 'pets', key: 'pet' } as const, NEWBORN)
@@ -74,6 +78,10 @@ let isRemote = false
 // The level last seen for the pet that is out, so a level-up is announced once, whether it came
 // from a turn, a pat or a run.
 let shownLevel = 1
+// Pet Quest's stage in play, as Pet Run's course.
+let quest: Quest | null = null
+let questTicker: { cancel: () => void } | null = null
+const questView = atom({ plugin: 'pets', key: 'quest' } as const, { stage: 0, phase: 'ready', score: 0, snacks: 0 } as QuestView)
 
 function speciesOf(who: PetProfile): Species {
   return SPECIES[who.species] ?? SPECIES[DEFAULT_SPECIES]!
@@ -149,6 +157,7 @@ function toStats(fields: Record<string, unknown>): PetStats {
     tokens: count(fields.tokens),
     snacks: count(fields.snacks),
     best: count(fields.best),
+    cleared: count(fields.cleared),
   }
 }
 
@@ -203,6 +212,7 @@ function statusOf(who: PetProfile): string {
     `${titleOf(who)} · Lv ${level} · ${xpOf(stats)} xp (next at ${XP_CURVE * level * level})`,
     `${stats.pats} pats, ${stats.turns} turns, ${stats.tools} tool calls, ${compact(stats.tokens)} output tokens`,
     ...(stats.best === 0 ? [] : [`Pet Run best ${stats.best}, ${stats.snacks} snacks`]),
+    ...(stats.cleared === 0 ? [] : [`Pet Quest ${stats.cleared}/${STAGES.length} stages cleared`]),
     ...(others.length === 0 ? [] : [`Also: ${others.join(', ')}`]),
   ].join(' · ')
 }
@@ -351,6 +361,47 @@ async function tickRun($: EngineInterface): Promise<void> {
   }
 }
 
+function questViewOf(stage: Quest): QuestView {
+  return { stage: stage.stage, phase: stage.phase, score: questScore(stage), snacks: stage.snacks }
+}
+
+function questCells(stage: Quest, who: PetProfile): string {
+  return pack(toCells(paintQuest(stage, speciesOf(who), stageOf(levelOf(statsOf(who))))))
+}
+
+/** Keeps what a stage gave: its snacks feed the pet, and a cleared stage opens the next. */
+async function keepQuest($: EngineInterface, stage: Quest): Promise<PetProfile> {
+  return grow($, stats => ({
+    ...stats,
+    snacks: stats.snacks + stage.snacks,
+    cleared: stage.phase === 'clear' ? Math.max(stats.cleared, stage.stage + 1) : stats.cleared,
+  }))
+}
+
+/** One tick of Pet Quest, as `tickRun`: on, repainted in place, kept once it ends. */
+async function tickQuest($: EngineInterface): Promise<void> {
+  if (quest === null || quest.phase !== 'running') {
+    return
+  }
+  const who = await read($, profile)
+  const now = advanceQuest(quest)
+  quest = now
+
+  void $.ui.blit({ requestId: QUEST, key: 'quest', cells: questCells(now, who) })
+  if (now.phase !== 'running') {
+    await update($, questView, () => questViewOf(now))
+    const kept = await keepQuest($, now)
+
+    $.ui.toast(
+      now.phase === 'clear'
+        ? `Stage ${now.stage + 1} clear! ${calledOf(kept)} ate ${now.snacks} snacks.`
+        : `${calledOf(kept)} will try stage ${now.stage + 1} again.`,
+    )
+  } else if (isRemote || now.tick % 10 === 0) {
+    await update($, questView, () => questViewOf(now))
+  }
+}
+
 /**
  * Toasts a level reached since `shown`, the level last seen: growing up and starting to shine
  * say so. Resolves to the level now seen.
@@ -464,6 +515,27 @@ export const register: Register = on => {
           text: opened.isPlaced
             ? `${called} is ready to run: j to jump, r to start over, Esc to stop.`
             : `${called} is ready to run, but the pane is not on screen: ${opened.reason}`,
+        }
+      }
+      case 'quest': {
+        const cleared = statsOf(who).cleared
+        const open = Math.min(cleared, STAGES.length - 1)
+        const asked = rest[0] === undefined ? open + 1 : Number(rest[0])
+
+        if (!Number.isInteger(asked) || asked < 1 || asked > open + 1) {
+          return { text: `Stages open: 1 to ${open + 1} of ${STAGES.length}.` }
+        }
+        quest = newQuest(asked - 1, quest?.width ?? RUN_MIN)
+        isRemote = (await $.session.surfaces()).some(surface => surface !== 'terminal')
+        await update($, questView, () => questViewOf(quest ?? newQuest(0, RUN_MIN)))
+        questTicker?.cancel()
+        questTicker = $.clock.every(QUEST_TICK_MS, () => void tickQuest($))
+        const opened = await $.ui.open({ id: QUEST, title: QUEST_TITLE, rows: QUEST_HEIGHT / 2 + 2, focus: true, closeOnEscape: true })
+
+        return {
+          text: opened.isPlaced
+            ? `Stage ${asked}: j to start and jump (again while rising to go higher), r to retry, n for the next stage, Esc to stop.`
+            : `Stage ${asked} is ready, but the pane is not on screen: ${opened.reason}`,
         }
       }
       case 'bye':
@@ -673,6 +745,95 @@ export const register: Register = on => {
         <Box gap={1}>
           <Button key="jump" hotkey="j" onPress={onJump}>Jump</Button>
           <Button key="restart" hotkey="r" onPress={onRestart}>Again</Button>
+        </Box>
+      </Box>
+    )
+  })
+
+  on('ui.close', { id: QUEST }, async ($, e, next) => {
+    questTicker?.cancel()
+    questTicker = null
+    if (quest !== null && quest.phase === 'running') {
+      await keepQuest($, quest)
+    }
+    quest = null
+
+    return next(e)
+  })
+
+  on('ui.render', { component: 'Pane', requestId: QUEST }, async ($, e) => {
+    const who = await read($, profile)
+    const view = await read($, questView)
+    const fits = Math.max(RUN_MIN, Math.min(RUN_MAX, e.props.bodyColumns - 2))
+
+    if (quest === null || (quest.phase === 'ready' && quest.width !== fits)) {
+      quest = newQuest(quest?.stage ?? view.stage, fits)
+    }
+    const stage = quest
+    const hasNext = view.phase === 'clear' && stage.stage + 1 < STAGES.length
+    const hint =
+      view.phase === 'ready'
+        ? 'press j to start'
+        : view.phase === 'over'
+          ? 'oops! r to retry'
+          : view.phase === 'clear'
+            ? hasNext
+              ? 'clear! n for the next stage'
+              : 'all stages clear!'
+            : ''
+    const onJump = () => {
+      if (quest !== null) {
+        const before = quest.phase
+        quest = jumpQuest(quest)
+        if (quest.phase !== before) {
+          void update($, questView, () => questViewOf(quest ?? stage))
+        }
+      }
+    }
+    const restart = (index: number) => {
+      if (quest !== null && quest.phase !== 'running') {
+        quest = newQuest(index, quest.width)
+        void update($, questView, () => questViewOf(quest ?? stage))
+      }
+    }
+    const onRetry = () => restart(quest?.stage ?? 0)
+    const onNext = () => {
+      if (quest !== null && quest.phase === 'clear' && quest.stage + 1 < STAGES.length) {
+        restart(quest.stage + 1)
+      }
+    }
+    const line = `stage ${view.stage + 1}/${STAGES.length}  score ${view.score}  snacks ${view.snacks}`
+
+    if (e.surface === 'terminal') {
+      const { Box, Text, Raster, Button } = $.ui.resolve(e)
+
+      return (
+        <Box flexDirection="column">
+          <Box>
+            <Text color={PASTEL.pink} bold>{`${calledOf(who)} `}</Text>
+            <Text color={PASTEL.gray}>{line}</Text>
+            {hint !== '' && <Text color={PASTEL.yellow}>{`  ${hint}`}</Text>}
+          </Box>
+          <Raster key="quest" columns={stage.width} rows={QUEST_HEIGHT / 2} cells={questCells(stage, who)} />
+          <Box gap={1}>
+            <Button key="jump" hotkey="j" plain onPress={onJump}>Jump</Button>
+            <Button key="retry" hotkey="r" plain onPress={onRetry}>Retry</Button>
+            <Button key="next" hotkey="n" plain onPress={onNext}>Next</Button>
+          </Box>
+        </Box>
+      )
+    }
+
+    const { Box, Text, Svg, Button } = $.ui.resolve(e)
+
+    return (
+      <Box flexDirection="column">
+        <Text>{`${calledOf(who)} · ${line}${hint === '' ? '' : ` · ${hint}`}`}</Text>
+        <Svg source={pixelsSvg(paintQuest(stage, speciesOf(who), stageOf(levelOf(statsOf(who)))), 5)} alt={`Pet Quest stage ${view.stage + 1}`} />
+        <Box gap={1}>
+          <Button key="jump" hotkey="j" onPress={onJump}>Jump</Button>
+          <Button key="retry" hotkey="r" onPress={onRetry}>Retry</Button>
+          <Button key="next" hotkey="n" onPress={onNext}>Next</Button>
         </Box>
       </Box>
     )

@@ -9,6 +9,8 @@
  */
 import { expect, mock, test } from 'claude-code/testing'
 
+import { QUEST_ROWS, STAGES, advanceQuest, jumpQuest, newQuest } from '../hooks/quest'
+import type { Quest } from '../hooks/quest'
 import { advance, jump, newRun, scoreOf } from '../hooks/run'
 import { stageOf } from '../hooks/scene'
 import { SPECIES } from '../hooks/species'
@@ -356,5 +358,119 @@ test('Pet Run off the terminal is an SVG with Jump and Again buttons', async $ =
     expect(await game.find({ type: 'Button', key: 'jump' })).toBeDefined()
     expect(await game.find({ type: 'Button', key: 'restart' })).toBeDefined()
     await game.unmount()
+  }
+})
+
+test('Pet Quest stages are whole maps: equal rows, known tiles, a flag', () => {
+  for (const stage of STAGES) {
+    expect(stage.length).toBe(QUEST_ROWS)
+    expect(new Set(stage.map(row => row.length)).size).toBe(1)
+    expect(stage.join('').replace(/[.#=?Pcb F]/g, '')).toBe('')
+    expect(stage.join('')).toContain('F')
+  }
+})
+
+/** Searches for presses that clear a stage, a few hundred runs abreast: the stage is fair if one does. */
+function clears(index: number): boolean {
+  let beam: Quest[] = [jumpQuest(newQuest(index, 80))]
+
+  for (let tick = 0; tick < 2000 && beam.length > 0; tick += 1) {
+    const next = new Map<string, Quest>()
+
+    for (const quest of beam) {
+      for (const isPressed of [false, true]) {
+        const pressed = isPressed ? jumpQuest(quest) : quest
+        if (isPressed && pressed === quest) {
+          continue
+        }
+        const now = advanceQuest(pressed)
+        if (now.phase === 'clear') {
+          return true
+        }
+        if (now.phase === 'running') {
+          const alive = now.foes.filter(foe => foe.isAlive).length
+          const key = `${Math.round(now.x)},${Math.round(now.y * 2)},${Math.round(now.rise * 4)},${now.isGrounded},${now.hasBoosted},${alive}`
+          const seen = next.get(key)
+          if (seen === undefined || seen.snacks < now.snacks) {
+            next.set(key, now)
+          }
+        }
+      }
+    }
+    beam = [...next.values()].sort((a, b) => b.x - a.x || b.snacks - a.snacks).slice(0, 400)
+  }
+
+  return false
+}
+
+test('every Pet Quest stage can be cleared', () => {
+  expect(STAGES.map((_, index) => clears(index))).toEqual(STAGES.map(() => true))
+})
+
+test('Pet Quest: a ? block gives a snack, a fall stomps a bug, a pit ends it, the flag clears it', () => {
+  const open = (rows: string[]): Quest => ({ ...newQuest(0, 40), tiles: rows, foes: [], phase: 'running' as const })
+  const floor = '#'.repeat(30)
+  const sky = '.'.repeat(30)
+
+  // A ? block right over its head, rising into it.
+  const knocked = advanceQuest({ ...open([sky, sky, '..?' + sky.slice(3), sky, sky, sky, floor]), y: 11, rise: 2, isGrounded: false })
+  expect(knocked.snacks).toBe(1)
+  expect(knocked.tiles[2]?.[2]).toBe('u')
+
+  // Falling onto a bug squashes it and bounces.
+  const stomped = advanceQuest({ ...open([sky, sky, sky, sky, sky, sky, floor]), y: 13, rise: -2, isGrounded: false, foes: [{ x: 6, y: 20, dir: -1, isAlive: true }] })
+  expect(stomped.stomps).toBe(1)
+  expect(stomped.rise).toBeGreaterThan(0)
+
+  let falling = { ...open([sky, sky, sky, sky, sky, sky, '..' + '.'.repeat(28)]), y: 16 }
+  for (let tick = 0; tick < 40 && falling.phase === 'running'; tick += 1) {
+    falling = advanceQuest(falling)
+  }
+  expect(falling.phase).toBe('over')
+
+  const flagged = advanceQuest({ ...open([sky, sky, sky, sky, sky, '..F' + sky.slice(3), floor]), x: 2 })
+  expect(flagged.phase).toBe('clear')
+})
+
+test('/pet quest opens the next open stage, keeps later ones shut, and j starts it', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  mock.store(on, { profile: { species: 'cat', pets: { cat: { name: '초코' } } } })
+  on('ui.open', async () => ({ value: { isPlaced: true as const } }))
+  on('ui.blit', async () => ({ value: {} }))
+  on('ui.toast', async () => ({ value: undefined }))
+  on('session.surfaces', async () => ({ value: ['terminal' as const] }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const run = async (args: string) =>
+    (
+      await $.command.run({
+        command: 'pet',
+        args,
+        origin: { kind: 'composer' },
+        presentation: { isFullscreen: false, columns: 80 },
+      })
+    ).text
+
+  expect(await run('quest 2')).toBe('Stages open: 1 to 1 of 3.')
+  expect(await run('quest')).toMatch(/^Stage 1: j to start/)
+
+  const game = await $.ui.mount({ ...PANE, requestId: 'pets-quest', surface: 'terminal' })
+  expect(await game.find({ type: 'Raster', key: 'quest' })).toBeDefined()
+  expect(await game.find({ type: 'Text', text: /press j to start/ })).toBeDefined()
+  await game.press({ key: 'jump' })
+  await clock.advance(50 * 40)
+  expect(await game.find({ type: 'Text', text: /press j to start/ })).toBeUndefined()
+  expect(await game.find({ type: 'Text', text: /stage 1\/3/ })).toBeDefined()
+  // Retry does nothing mid-run.
+  await game.press({ key: 'retry' })
+  expect(await game.find({ type: 'Text', text: /press j to start/ })).toBeUndefined()
+  await game.unmount()
+
+  for (const surface of ['desktop', 'mobile'] as const) {
+    const card = await $.ui.mount({ ...PANE, requestId: 'pets-quest', surface })
+    expect((await card.find({ type: 'Svg' }))?.props.source).toMatch(/^<svg /)
+    expect(await card.find({ type: 'Button', key: 'jump' })).toBeDefined()
+    await card.unmount()
   }
 })
