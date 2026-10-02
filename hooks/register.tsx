@@ -17,7 +17,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Pet, PetProfile, PetSize, PetStats } from '../types'
-import { DEFAULT_SIZE, SIZES, cardWidthFor, lookOf, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
+import { DEFAULT_SIZE, SIZES, cardWidthFor, lookOf, stageOf, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
 import { DEFAULT_SPECIES, SPECIES } from './species'
 import type { Species } from './species'
 
@@ -274,6 +274,29 @@ async function grow($: EngineInterface, change: (stats: PetStats) => PetStats): 
   return now
 }
 
+/**
+ * Toasts a level reached since `shown`, the level last seen: growing up and starting to shine
+ * say so. Resolves to the level now seen.
+ */
+function announce($: EngineInterface, now: PetProfile, shown: number): number {
+  const level = levelOf(statsOf(now))
+
+  if (level > shown) {
+    const stage = stageOf(level)
+    const called = calledOf(now)
+
+    $.ui.toast(
+      stage === stageOf(shown)
+        ? `${called} reached Lv ${level}!`
+        : stage === 'star'
+          ? `${called} is a star now! (Lv ${level})`
+          : `${called} grew up! (Lv ${level})`,
+    )
+  }
+
+  return level
+}
+
 export const register: Register = on => {
   // Tool calls since the last save: the store is written once a turn, not on every call.
   let unsavedTools = 0
@@ -303,9 +326,10 @@ export const register: Register = on => {
         return { text: `${called} is out.${await openPane($, who)}` }
       case 'pat': {
         await update($, pet, one => act(one, 'love', 8))
-        const unseen = await openPane($, await grow($, stats => ({ ...stats, pats: stats.pats + 1 })))
+        const now = await grow($, stats => ({ ...stats, pats: stats.pats + 1 }))
+        shownLevel = announce($, now, shownLevel)
 
-        return { text: `${called} is pleased.${unseen}` }
+        return { text: `${called} is pleased.${await openPane($, now)}` }
       }
       case 'name': {
         const given = cleanName(rest.join(' '))
@@ -378,12 +402,7 @@ export const register: Register = on => {
     if (isMain) {
       await update($, pet, one => act(one, 'happy', 10))
     }
-    const level = levelOf(statsOf(now))
-
-    if (level > shownLevel) {
-      $.ui.toast(`${calledOf(now)} reached Lv ${level}!`)
-    }
-    shownLevel = level
+    shownLevel = announce($, now, shownLevel)
 
     return next(e)
   })
@@ -412,10 +431,11 @@ export const register: Register = on => {
       const isBeside = !isDocked && e.props.bodyColumns >= fewest + PANEL + 4
       const room = isBeside ? e.props.bodyColumns - PANEL - 4 : e.props.bodyColumns - 2
       const columns = Math.max(fewest, Math.min(MAX_YARD, room))
-      const scene = paint(one, kind, who.size, isSad, columns, STEPS)
+      const scene = paint(one, kind, who.size, columns, STEPS, { isSad, stage: stageOf(levelOf(stats)) })
       const cells = toCells(scene.pixels)
       const width = cells[0]?.length ?? 0
       const level = levelOf(stats)
+      const stage = stageOf(level)
       const hasPanel = isDocked || isBeside
       const progress = progressOf(stats)
       const [filled, empty] = barOf(progress)
@@ -423,7 +443,7 @@ export const register: Register = on => {
       const yard = <Raster key="pet" columns={width} rows={cells.length} cells={pack(cells)} />
       const panel = (
         <Box flexDirection="column" width={PANEL} paddingLeft={isBeside ? 2 : 0}>
-          <Text color={PASTEL.gray} dimColor>{kind.label.toUpperCase()}</Text>
+          <Text color={PASTEL.gray} dimColor>{stage === 'baby' ? kind.label.toUpperCase() : `${kind.label.toUpperCase()} · ${stage.toUpperCase()}`}</Text>
           <Box>
             <Text color={PASTEL.pink} bold>{`Lv ${level}`}</Text>
             <Text color={PASTEL.gray}>{`  ${xpOf(stats)} / ${XP_CURVE * level * level} xp`}</Text>
@@ -480,7 +500,7 @@ export const register: Register = on => {
     const { Svg } = $.ui.resolve(e)
     const tally = tallyLine(stats)
     const across = Math.max(fewest, cardWidthFor(who.size, tally), Math.min(MAX_CARD, Math.floor((e.props.bodyColumns * CELL_PX) / unit) - 4))
-    const scene = paint(one, kind, who.size, isSad, across, STEPS, false)
+    const scene = paint(one, kind, who.size, across, STEPS, { isSad, withGrass: false, stage: stageOf(levelOf(stats)) })
     const caption = { name: stats.name, level: levelOf(stats), progress: progressOf(stats), says, tally }
     const alt = `${titleOf(who)}, Lv ${levelOf(stats)}${says === '' ? '' : `: ${says}`}`
 

@@ -65,6 +65,16 @@ Only output tokens count. Input and cache reads grow with how long the conversat
 
 A pet reaches level `n + 1` at `25 × n²` experience: level 2 at 25, level 5 at 400, level 10 at 2,025, level 50 at 60,025. Early levels come within an evening; later ones take longer and there is no cap.
 
+### Stages
+
+| Stage | From | Looks |
+|-------|------|-------|
+| Baby | Lv 1 | As drawn |
+| Grown | Lv 15 | Wears its accessory: the cat and the bunny a ribbon, the chick a flower, the dog a scarf, the slime and the frog a crown, the hamster a leaf, the penguin a bow tie |
+| Star | Lv 40 | Its accessory, and a twinkle beside its head |
+
+A toast says when it grows up or becomes a star. Levels and what is kept do not change: a pet that is already past Lv 15 wears its accessory the next time it is out.
+
 ## Sizes
 
 `/pet size` picks how much room the pet takes, and it is kept across sessions:
