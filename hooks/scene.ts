@@ -92,16 +92,19 @@ type Prop = { rows: readonly string[]; ink: Readonly<Record<string, number>>; li
  * What fills the yard as a side of its nature grows, big and small: a building site, a
  * library corner, a garden, an arcade. Each side's props, in the order they appear.
  */
+const CONE = { o: 0xff7a2a, O: 0xd9531a, w: 0xfffaf0, W: 0xd8d4cc, k: 0x4a4a58 } as const
+
 const YARD: Readonly<Record<(typeof SIDES)[number], { big: readonly Prop[]; mini: readonly Prop[] }>> = {
   worker: {
     big: [
-      { rows: ['..o..', '.owo.', '.ooo.', 'owwwo', 'ooooo'], ink: { o: 0xff8a3d, w: 0xfffaf0 } },
+      // A traffic cone: a narrow tip, two white bands, a dark square base.
+      { rows: ['...o...', '..ooO..', '..wwW..', '.oooOO.', '.wwwwW.', 'kkkkkkk'], ink: CONE },
       { rows: ['wowow', 'wowow', 'k...k', 'k...k'], ink: { w: 0xfffaf0, o: 0xff8a3d, k: 0x8a8a9a } },
       { rows: ['..gg..', '.gGgg.', 'gGgggG'], ink: { g: 0xb0b0c0, G: 0x80808f } },
       { rows: ['yyyyy', 'ykyky', 'yyyyy', '..k..', '..k..'], ink: { y: 0xffd447, k: 0x5f5f5f } },
     ],
     mini: [
-      { rows: ['.o.', 'owo', 'ooo'], ink: { o: 0xff8a3d, w: 0xfffaf0 } },
+      { rows: ['..o..', '.wwW.', '.ooO.', 'kkkkk'], ink: CONE },
       { rows: ['.gg', 'gGg'], ink: { g: 0xb0b0c0, G: 0x80808f } },
     ],
   },
