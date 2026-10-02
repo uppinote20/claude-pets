@@ -12,6 +12,7 @@
  */
 import { expect, mock, test } from 'claude-code/testing'
 
+import { ART_SIDE, artOf } from '../hooks/art'
 import { giftOf, worthOf } from '../hooks/luck'
 import { daypartOf, driftLeaning, natureOf, reformOf, rhythmOf } from '../hooks/nature'
 import { QUEST_ROWS, STAGES, advanceQuest, jumpQuest, newQuest } from '../hooks/quest'
@@ -214,6 +215,29 @@ test('every sprite row is as wide as its sprite, and every mark has a color', as
         expect({ id, size, row, width: row.length }).toEqual({ id, size, row, width: side })
         expect([...row].filter(mark => mark !== '.' && !(mark in ink))).toEqual([])
       }
+    }
+  }
+})
+
+test('every species has hi-res baby art, square, fully inked, its frames on rows of their own', () => {
+  for (const id of Object.keys(SPECIES)) {
+    for (const stage of ['baby', 'teen', 'adult'] as const) {
+      const art = artOf(id, stage)
+      if (art === undefined) {
+        expect({ id, stage, hasArt: stage !== 'baby' }).toEqual({ id, stage, hasArt: true })
+        continue
+      }
+      const frames = [art.eyesShut, art.tear, art.feetApart].map(frame => Object.keys(frame))
+      const rows = [art.rows, art.eyesShut, art.tear, art.feetApart].flatMap(Object.values)
+
+      expect(art.rows.length).toBe(ART_SIDE)
+      for (const row of rows) {
+        expect({ id, stage, width: row.length }).toEqual({ id, stage, width: ART_SIDE })
+        expect([...row].filter(mark => mark !== '.' && !(mark in art.ink))).toEqual([])
+      }
+      // A blink and a step can come on the same tick: neither may undo the other.
+      expect(new Set(frames.flat()).size).toBe(frames.flat().length)
+      expect(frames.every(frame => frame.length > 0)).toBe(true)
     }
   }
 })
