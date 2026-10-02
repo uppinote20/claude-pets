@@ -407,7 +407,7 @@ export const register: Register = on => {
 
         return { text: `${called} went back inside.` }
       default:
-        return { text: `Usage: ${['/pet', ...VERBS.map(verb => `/pet ${verb}`)].join(', ')}` }
+        return { text: `Usage: ${['/pet', ...VERBS.map(form => `/pet ${form}`)].join(', ')}` }
     }
   })
 
