@@ -1,5 +1,6 @@
 // Writes assets/<species>.svg from the sprite data, so the README shows the plugin's own pixels.
-// Run with Node 24+: node scripts/sprites.mjs
+// Run with Node 22.18+: node scripts/sprites.mjs
+// @handbook 4.4-readme-asset-generation
 import { mkdirSync, writeFileSync } from 'node:fs'
 
 import { SPECIES } from '../hooks/species.ts'

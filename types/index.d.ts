@@ -1,3 +1,7 @@
+/**
+ * The state contract: what the `pets` atoms and `$.store` hold.
+ * @handbook 1.2-state-layers
+ */
 export type Pet = {
   x: number
   dir: 1 | -1

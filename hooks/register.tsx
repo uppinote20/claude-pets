@@ -1,3 +1,18 @@
+/**
+ * The hooks module: state, the /pet command, session reactions and the Pane render.
+ * @handbook 1.1-mod-registration
+ * @handbook 1.2-state-layers
+ * @handbook 1.3-event-flow
+ * @handbook 2.1-defensive-store-read
+ * @handbook 2.2-grow-write-once
+ * @handbook 2.3-name-sanitizing
+ * @handbook 3.1-xp-level-curve
+ * @handbook 3.2-mood-state-machine
+ * @handbook 3.3-pet-command
+ * @handbook 4.2-pixel-pipeline
+ * @handbook 4.3-surface-branch
+ * @tested tests/pet.test.ts
+ */
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 

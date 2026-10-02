@@ -40,3 +40,31 @@ claude --plugin-dir .                               # try it in a session
 - Write to `$.store` once per turn at most (`grow`), not on every tool call.
 - No runtime dependencies.
 - Bump `version` in both `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` together; the release workflow refuses a tag that disagrees with them.
+
+## Engineering Handbook
+
+Detailed patterns and architecture: [`docs/ENGINEERING_HANDBOOK.md`](../docs/ENGINEERING_HANDBOOK.md)
+
+The handbook is maintainer-only: `docs` is a git-ignored symlink into `.private/` and is absent from a fresh clone. The `@handbook` markers in the source stay either way.
+
+**Bidirectional links:**
+- `@handbook X.Y-slug` in a source file's header → the handbook subsection
+- `<!-- @code path -->` in the handbook → the source file
+- Change one side, sync the other
+- Find markers: `grep -rn "@handbook" hooks/ types/ scripts/ tests/`
+
+| Looking for | Handbook section |
+|-------------|------------------|
+| Mod loading, state layers, hook table | 1 |
+| `$.store` reads, `grow`, input cleaning | 2 |
+| XP and levels, moods, `/pet` verbs | 3 |
+| Sprites, pixel → cell → surface | 4 |
+| Test harness, CI and version gates | 5 |
+
+| Pattern | Reference |
+|---------|-----------|
+| Observing hook (`next(e)`) | `hooks/register.tsx` — `on('tool.call', …)` |
+| Persisted change | `hooks/register.tsx` — `grow` |
+| Reading old store shapes | `hooks/register.tsx` — `toProfile`, `toStats` |
+| New species | `hooks/species.ts` — `SPECIES.chick` |
+| Hook-level test | `tests/pet.test.ts` |

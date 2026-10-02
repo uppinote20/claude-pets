@@ -4,6 +4,9 @@
  *
  * To add one: draw `rows`, give every character a color in `ink` (`.` is empty),
  * and supply the rows that replace the eyes, the cheek row and the feet.
+ *
+ * @handbook 4.1-species-sprite-data
+ * @tested tests/pet.test.ts
  */
 export type Species = {
   label: string
