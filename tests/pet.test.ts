@@ -86,7 +86,7 @@ test('the pet paces, takes a pat, a name and a species, and leaves when told', a
   // A subagent's turn adds its tokens but is no turn of the conversation's.
   await $.turn.complete({ ...turn, agentId: 'a1', usage: { ...usage, output_tokens: 500 } })
   expect(await run('status')).toBe(
-    'The chick the chick · Lv 2 · 27 xp (next at 100) · 0 pats, 1 turns, 0 tool calls, 22.0K output tokens · Also: 나비 the cat Lv 2',
+    'The chick · Lv 2 · 27 xp (next at 100) · 0 pats, 1 turns, 0 tool calls, 22.0K output tokens · Also: 나비 the cat Lv 2',
   )
   expect(await run('choose cat')).toBe('나비 is out.')
 
@@ -94,6 +94,22 @@ test('the pet paces, takes a pat, a name and a species, and leaves when told', a
   expect(await run('bye')).toBe('나비 went back inside.')
   expect(closed).toEqual(['pets'])
   await pane.unmount()
+})
+
+test('/pet says why when no surface places the pane', async ($, on) => {
+  const reason = 'no attached surface places panes'
+  on('ui.open', async () => ({ value: { isPlaced: false as const, reason } }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const { text } = await $.command.run({
+    command: 'pet',
+    args: '',
+    origin: { kind: 'composer' },
+    presentation: { isFullscreen: false, columns: 80 },
+  })
+  expect(text).toBe(`The cat is out. The pane is not on screen: ${reason}`)
 })
 
 test('surfaces without Raster draw the same pet as text runs', async $ => {
