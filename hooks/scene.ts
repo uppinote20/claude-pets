@@ -12,6 +12,10 @@ import type { Pet } from '../types'
 import type { Daypart, Nature } from './nature'
 import type { Accessory, Head, Species, Sprite } from './species'
 
+/** The four sides of a nature, in the order `PetStats.leaning` keeps them. Here, not in nature.ts, so scene.ts imports nothing at run time and scripts can load it. */
+export const SIDES = ['worker', 'scholar', 'sweetie', 'gamer'] as const
+export type Side = (typeof SIDES)[number]
+
 export type Size = 'small' | 'medium'
 
 export const SIZES: readonly Size[] = ['small', 'medium']
@@ -81,6 +85,97 @@ const SKY: Readonly<Record<Daypart, { rows: readonly string[]; ink: Readonly<Rec
   evening: { rows: ['.ss.', 'ssss'], ink: { s: 0xff9a76 } },
 }
 const STARS = [3, 11, 19, 27, 35] as const
+
+type Prop = { rows: readonly string[]; ink: Readonly<Record<string, number>>; lift?: number }
+
+/**
+ * What fills the yard as a side of its nature grows, big and small: a building site, a
+ * library corner, a garden, an arcade. Each side's props, in the order they appear.
+ */
+const YARD: Readonly<Record<(typeof SIDES)[number], { big: readonly Prop[]; mini: readonly Prop[] }>> = {
+  worker: {
+    big: [
+      { rows: ['..o..', '.owo.', '.ooo.', 'owwwo', 'ooooo'], ink: { o: 0xff8a3d, w: 0xfffaf0 } },
+      { rows: ['wowow', 'wowow', 'k...k', 'k...k'], ink: { w: 0xfffaf0, o: 0xff8a3d, k: 0x8a8a9a } },
+      { rows: ['..gg..', '.gGgg.', 'gGgggG'], ink: { g: 0xb0b0c0, G: 0x80808f } },
+      { rows: ['yyyyy', 'ykyky', 'yyyyy', '..k..', '..k..'], ink: { y: 0xffd447, k: 0x5f5f5f } },
+    ],
+    mini: [
+      { rows: ['.o.', 'owo', 'ooo'], ink: { o: 0xff8a3d, w: 0xfffaf0 } },
+      { rows: ['.gg', 'gGg'], ink: { g: 0xb0b0c0, G: 0x80808f } },
+    ],
+  },
+  scholar: {
+    big: [
+      { rows: ['bbbbbb', 'brguyb', 'bbbbbb', 'byrgub', 'bbbbbb'], ink: { b: 0x8a5a3a, r: 0xe06b6b, g: 0x7cc576, u: 0x6fa8dc, y: 0xffd447 } },
+      { rows: ['.yyy.', 'yyyyy', '..k..', '..k..', '.kkk.'], ink: { y: 0xffe9a0, k: 0x8a8a9a } },
+      { rows: ['.ugu.', 'uggug', '.ugu.', '..k..', '.kkk.'], ink: { u: 0x6fa8dc, g: 0x7cc576, k: 0x8a8a9a } },
+      { rows: ['rrrr', 'gggg', 'uuuu'], ink: { r: 0xe06b6b, g: 0x7cc576, u: 0x6fa8dc } },
+    ],
+    mini: [
+      { rows: ['bbbb', 'brgb', 'bbbb'], ink: { b: 0x8a5a3a, r: 0xe06b6b, g: 0x7cc576 } },
+      { rows: ['yyy', '.k.', 'kkk'], ink: { y: 0xffe9a0, k: 0x8a8a9a } },
+    ],
+  },
+  sweetie: {
+    big: [
+      { rows: ['p.p', 'ppp', '.g.', 'gg.', '.g.'], ink: { p: 0xff87af, g: 0x7cc576 } },
+      { rows: ['gg.gg', 'gpgpg', 'ggggg', '.ggg.'], ink: { g: 0x6fbf6f, p: 0xff87af } },
+      { rows: ['.p.', 'pyp', '.p.', 'ttt', '.t.'], ink: { p: 0xffafd7, y: 0xffe36e, t: 0xd0805a } },
+      { rows: ['p.p', '.k.', 'p.p'], ink: { p: 0xffafd7, k: 0x5f4b4b }, lift: 6 },
+    ],
+    mini: [
+      { rows: ['p.p', 'ppp', '.g.'], ink: { p: 0xff87af, g: 0x7cc576 } },
+      { rows: ['.p.', 'pyp', '.g.'], ink: { p: 0xffafd7, y: 0xffe36e, g: 0x7cc576 } },
+    ],
+  },
+  gamer: {
+    big: [
+      { rows: ['kkkk', 'kuuk', 'kuuk', 'kkkk', 'krbk', 'kkkk'], ink: { k: 0x6a5aa8, u: 0x7fe0ff, r: 0xff6b8a, b: 0xffd447 } },
+      { rows: ['yyyyy', '.yyy.', '..y..', '.yyy.'], ink: { y: 0xffd447 } },
+      { rows: ['.y.', 'yYy', '.y.'], ink: { y: 0xffd447, Y: 0xfff3b0 }, lift: 5 },
+      { rows: ['.r.', '.k.', 'kkk'], ink: { r: 0xff6b8a, k: 0x6a5aa8 } },
+    ],
+    mini: [
+      { rows: ['kkk', 'kuk', 'krk'], ink: { k: 0x6a5aa8, u: 0x7fe0ff, r: 0xff6b8a } },
+      { rows: ['yyy', '.y.', 'yyy'], ink: { y: 0xffd447 } },
+    ],
+  },
+}
+
+/** What the grass turns toward as a side takes over: dirt, a wooden floor, lush green, an arcade carpet. */
+const GROUND_TINT: Readonly<Record<(typeof SIDES)[number], number>> = {
+  worker: 0xc9a27a,
+  scholar: 0xb58a64,
+  sweetie: 0x9fe08f,
+  gamer: 0x8f7fd0,
+}
+
+function blend(from: number, to: number, amount: number): number {
+  const mix = (shift: number) => Math.round(((from >> shift) & 0xff) * (1 - amount) + ((to >> shift) & 0xff) * amount)
+
+  return (mix(16) << 16) | (mix(8) << 8) | mix(0)
+}
+
+/**
+ * How many props each side gets of `slots`, by its share of the leaning (largest remainder),
+ * so the yard fills one prop at a time as a side grows, and empties the same way as it fades.
+ */
+export function yardOf(leaning: readonly number[], slots: number): number[] {
+  const wanted = SIDES.map((_, at) => (leaning[at] ?? 0) * slots)
+  const counts = wanted.map(Math.floor)
+  const left = slots - counts.reduce((sum, count) => sum + count, 0)
+  const order = wanted.map((want, at) => [want - Math.floor(want), at] as const).sort((a, b) => b[0] - a[0])
+
+  for (let i = 0; i < left && i < order.length; i += 1) {
+    const at = order[i]?.[1] ?? 0
+    if ((wanted[at] ?? 0) > 0) {
+      counts[at] = (counts[at] ?? 0) + 1
+    }
+  }
+
+  return counts
+}
 
 /** Pixels laid over the sprite, facing left, from its top left. */
 export type Overlay = { rows: readonly string[]; x: number; y: number; ink: Readonly<Record<string, number>> }
@@ -238,6 +333,8 @@ export type PaintOptions = {
   nature?: Nature
   /** The sun, the evening sun, or the moon and stars, by the local hour. */
   daypart?: Daypart
+  /** Its leaning (worker, scholar, sweetie, gamer shares): how much of the yard each side fills. */
+  leaning?: readonly number[]
 }
 
 /** The accessory's rows and left edge for the way the pet faces: mirrored with it. */
@@ -289,7 +386,7 @@ export function dressingOf(kind: Species, sprite: Sprite, isBig: boolean, stage:
 }
 
 export function paint(one: Pet, kind: Species, size: Size, width: number, steps: number, options: PaintOptions = {}): Scene {
-  const { isSad = false, withGrass = true, stage = 'baby', nature = 'curious', daypart = 'day', form = 'curious' } = options
+  const { isSad = false, withGrass = true, stage = 'baby', nature = 'curious', daypart = 'day', form = 'curious', leaning = [] } = options
   const look = LOOKS[size]
   // The small pane keeps the mini sprite at every stage; the big one grows and takes its form.
   const isBig = look.sprite === 'big'
@@ -320,11 +417,15 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
 
   // Grass: a tufted top row over a deeper one, a pink and a yellow flower.
   const grassTop = height - look.ground
+  // The side it leans to most tints the grass, more the further it leans.
+  const leading = leaning.reduce((best, share, at) => (share > (leaning[best] ?? 0) ? at : best), 0)
+  const tint = Math.max(0, Math.min(0.6, ((leaning[leading] ?? 0) - 0.3) * 1.2))
+  const shade = (color: number) => (tint > 0 ? blend(color, GROUND_TINT[SIDES[leading] ?? 'worker'], tint) : color)
   if (withGrass) {
     for (let x = 0; x < width; x += 1) {
-      put(x, grassTop, x % 4 === 1 ? PALETTE.tuft : PALETTE.grass)
+      put(x, grassTop, shade(x % 4 === 1 ? PALETTE.tuft : PALETTE.grass))
       for (let y = grassTop + 1; y < height; y += 1) {
-        put(x, y, PALETTE.grassDeep)
+        put(x, y, shade(PALETTE.grassDeep))
       }
     }
     put(2, grassTop, PALETTE.pink)
@@ -341,6 +442,17 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
       }
     })
   }
+
+  // The props of its leaning, in slots spread along the yard, behind the pet.
+  const slots = isBig ? 4 : 2
+  const counts = yardOf(leaning, slots)
+  const props = SIDES.flatMap((side, at) => YARD[side][isBig ? 'big' : 'mini'].slice(0, counts[at] ?? 0))
+  props.forEach((prop, slot) => {
+    const across = prop.rows[0]?.length ?? 0
+    const x = Math.round(((slot + 0.5) / slots) * (width - 8)) + 1 - Math.floor(across / 2)
+
+    stamp(prop.rows, prop.ink, x, grassTop - prop.rows.length - (prop.lift ?? 0))
+  })
 
   const left = Math.round((one.x / steps) * Math.max(0, width - spriteWidth - BADGE))
   const isBouncy = one.mood === 'walk' || one.mood === 'happy' || one.mood === 'gift'

@@ -6,6 +6,8 @@
  * @tested tests/pet.test.ts
  */
 import type { PetStats } from '../types'
+import { SIDES } from './scene'
+import type { Side } from './scene'
 
 /** `curious` until it knows you, or while no one side of you stands out. */
 export type Nature = 'worker' | 'scholar' | 'sweetie' | 'gamer' | 'curious'
@@ -47,6 +49,49 @@ export function sidesOf(stats: PetStats): Record<Exclude<Nature, 'curious'>, num
   }
 }
 
+export { SIDES } from './scene'
+export type { Side } from './scene'
+
+/** How fast the leaning follows what each finished turn brought: a turn moves it 3% of the way. */
+const DRIFT = 0.03
+
+/** A weighting as shares that sum to 1, or all zero when there is nothing to share. */
+function shares(weights: readonly number[]): number[] {
+  const total = weights.reduce((sum, weight) => sum + weight, 0)
+
+  return weights.map(weight => (total > 0 ? weight / total : 0))
+}
+
+/** The leaning a pet starts from, before any turn has moved it: its whole life's shares. */
+export function lifetimeLeaning(stats: PetStats): number[] {
+  const sides = sidesOf(stats)
+
+  return shares(SIDES.map(side => sides[side]))
+}
+
+/**
+ * The leaning after a turn: each side moves a little toward what the turn brought (its tools,
+ * itself and its output, the pats and game snacks since the last turn). Old habits fade, so a
+ * pet that changes how it is kept changes with it, slowly.
+ */
+export function driftLeaning(leaning: readonly number[], brought: Readonly<Record<Side, number>>): number[] {
+  const now = shares(SIDES.map(side => brought[side]))
+
+  if (now.every(share => share === 0)) {
+    return [...leaning]
+  }
+  if (leaning.every(share => share === 0)) {
+    return now
+  }
+
+  return SIDES.map((_, at) => (leaning[at] ?? 0) * (1 - DRIFT) + (now[at] ?? 0) * DRIFT)
+}
+
+/** Whether it has seen enough of you for a nature to show. */
+export function isKnown(stats: PetStats): boolean {
+  return Object.values(sidesOf(stats)).reduce((sum, weight) => sum + weight, 0) >= KNOWN_AFTER
+}
+
 /** Where the largest of `values` is, or -1 when it is shared: a tie singles nothing out. */
 function topOf(values: readonly number[]): number {
   const best = Math.max(...values)
@@ -55,12 +100,27 @@ function topOf(values: readonly number[]): number {
   return values.indexOf(best, at + 1) === -1 ? at : -1
 }
 
+/** Its nature now: the side its leaning favors, once it knows you and one side stands out. */
 export function natureOf(stats: PetStats): Nature {
-  const sides = Object.entries(sidesOf(stats)) as [Exclude<Nature, 'curious'>, number][]
-  const total = sides.reduce((sum, [, weight]) => sum + weight, 0)
-  const top = sides[topOf(sides.map(([, weight]) => weight))]
+  const sides = Object.values(sidesOf(stats))
+  const total = sides.reduce((sum, weight) => sum + weight, 0)
+  const leaning = stats.leaning.length === SIDES.length ? stats.leaning : lifetimeLeaning(stats)
+  const top = topOf(leaning)
 
-  return top !== undefined && total >= KNOWN_AFTER && top[1] / total >= STANDS_OUT ? top[0] : 'curious'
+  return total >= KNOWN_AFTER && (leaning[top] ?? 0) >= STANDS_OUT ? SIDES[top] ?? 'curious' : 'curious'
+}
+
+/**
+ * An adult's form after a turn: it keeps its form until its leaning has clearly moved on (the
+ * new side well ahead, the old one faded), then takes the new side's. The rare form stays.
+ */
+export function reformOf(form: string, leaning: readonly number[]): string {
+  const at = SIDES.indexOf(form as Side)
+  // A tie has not clearly moved on anywhere.
+  const top = topOf(leaning)
+  const isFaded = at < 0 ? true : (leaning[at] ?? 0) <= 0.2
+
+  return form !== 'rare' && form !== '' && top !== at && (leaning[top] ?? 0) >= 0.45 && isFaded ? SIDES[top] ?? form : form
 }
 
 export function rhythmOf(hours: readonly number[]): Rhythm | null {

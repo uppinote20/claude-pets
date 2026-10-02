@@ -109,6 +109,10 @@ As it grows the pet takes after you. Its **nature** comes from what it has seen 
 | gamer | Pet Run and Pet Quest snacks | runs faster and kicks a ball along; as an adult, wears a headset |
 | curious | (until one side stands out) | sniffs around |
 
+Its nature follows its **leaning**: shares of the four sides that move a little toward whatever each finished turn brings (its tool calls, its talk, the pats and game snacks since). Old habits fade, so a pet kept differently changes with it, slowly.
+
+The yard shows the leaning as it grows. Each side fills it one prop at a time and tints the grass its way: a building site (cones, barriers, rocks, a warning sign), a library corner (a bookshelf, a lamp, a globe, a stack of books), a garden (tulips, a heart bush, a flower pot, a butterfly), an arcade (a cabinet, a trophy, a coin, a joystick). A mixed leaning makes a mixed yard. An adult whose leaning has clearly moved on (the new side well ahead, the old one faded) takes the new side's form and gear; a toast says so. The rare form stays.
+
 Its **rhythm** comes from the hours your finished turns keep: night owl, early bird, daytimer or evening type. Babies and teens show their nature in how they act; the gear comes with evolving, and a cap, a headset or a pin takes the place of a head accessory. Both show in the stats and in `/pet status`, and the pet muses about them now and then.
 
 The yard follows your clock: the morning sun, the midday sun, the evening sun, the moon and stars at night (the card off the terminal turns night blue). The local time comes from `date` on your machine.

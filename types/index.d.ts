@@ -33,6 +33,11 @@ export type PetStats = {
   hours: number[]
   /** What it became at Lv 40: its nature then, or 'rare'; empty before. */
   form: string
+  /**
+   * Its leaning, worker / scholar / sweetie / gamer, shares that follow what recent turns
+   * brought: it shapes the yard, its nature, and an adult's form over time.
+   */
+  leaning: number[]
 }
 
 /** What the Pet Quest pane's text shows. */
