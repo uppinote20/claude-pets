@@ -133,7 +133,7 @@ Where the surface can show more than half-block cells, the pet is drawn from hi-
 - **kitty and Ghostty**: the yard is drawn as one image in the same cells (read from `TERM` / `TERM_PROGRAM`).
 - **Any other terminal**: the 12×12 half-block sprite, as before.
 
-Every species has its baby drawn so far; a stage without art falls back to its 12×12 sprite until its art is drawn, one at a time, in [`hooks/art.ts`](hooks/art.ts). Shiny pets and rare adults keep their 12×12 colors for now. The `art` setting (`/config`) set to `pixel` keeps half blocks everywhere.
+Every species has its baby and its teen drawn so far, the teen's accessory drawn in; adults, and any stage without art, fall back to their 12×12 sprite until their art is drawn, one at a time, in [`hooks/art.ts`](hooks/art.ts). Shiny pets and rare adults keep their 12×12 colors for now. The `art` setting (`/config`) set to `pixel` keeps half blocks everywhere.
 
 ## Sizes
 

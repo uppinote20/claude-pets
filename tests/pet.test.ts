@@ -219,12 +219,12 @@ test('every sprite row is as wide as its sprite, and every mark has a color', as
   }
 })
 
-test('every species has hi-res baby art, square, fully inked, its frames on rows of their own', () => {
+test('every species has hi-res baby and teen art, square, fully inked, its frames on rows of their own', () => {
   for (const id of Object.keys(SPECIES)) {
     for (const stage of ['baby', 'teen', 'adult'] as const) {
       const art = artOf(id, stage)
       if (art === undefined) {
-        expect({ id, stage, hasArt: stage !== 'baby' }).toEqual({ id, stage, hasArt: true })
+        expect({ id, stage, hasArt: stage === 'adult' }).toEqual({ id, stage, hasArt: true })
         continue
       }
       const frames = [art.eyesShut, art.tear, art.feetApart].map(frame => Object.keys(frame))
