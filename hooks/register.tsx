@@ -16,36 +16,39 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Pet, PetProfile, PetStats } from '../types'
+import type { Pet, PetProfile, PetSize, PetStats } from '../types'
+import { DEFAULT_SIZE, SIZES, cardWidthFor, lookOf, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
 import { DEFAULT_SPECIES, SPECIES } from './species'
 import type { Species } from './species'
 
 const PANE = 'pets'
 const TITLE = 'Pet'
-const PANE_ROWS = 10
 const PROFILE_KEY = 'profile'
 const NAME_LIMIT = 20
 const TICK_MS = 600
-const YARD = 20
+const STEPS = 20
 const NAP_AFTER = 200
 const WORRY_PERCENT = 80
-const SPRITE_CELLS = 12
-const HEART_CELLS = 4
-const SCENE_PIXELS = 14
-const DEFAULT_COLOR = 0x01000000
-const HEART_INK = 0xff87af
-const HEART = ['h.h', 'hhh', '.h.'] as const
+/** The widest yard, in sprite pixels: room to roam above a wide prompt, and the SVG card's, where wider leaves the pet lost on it. */
+const MAX_YARD = 80
+const MAX_CARD = 30
+/** The terminal's cell, in CSS pixels of a remote surface's code font, roughly. */
+const CELL_PX = 8
 const XP_PER_TURN = 5
 const XP_PER_PAT = 2
 const TOKENS_PER_XP = 1000
 const XP_CURVE = 25
 /** What follows `/pet`: the command's description and its usage line are both built from this. */
-const VERBS = ['pat', 'name <name>', 'choose <species>', 'status', 'bye'] as const
+const VERBS = ['pat', 'name <name>', 'choose <species>', 'size <small|medium>', 'status', 'bye'] as const
+const BAR_CELLS = 5
+/** The stats column beside the yard: its width, and the bar's inside it. */
+const PANEL = 28
+const PANEL_BAR = 20
 
-const PASTEL = { yellow: '#ffd787', pink: '#ffafd7', green: '#afd7af', gray: '#b2b2b2' } as const
+const PASTEL = { yellow: '#ffd787', pink: '#ffafd7', green: '#afd7af', ink: '#3a2a2a', gray: '#b2b2b2', dim: '#5f5f5f' } as const
 const NEWBORN: Pet = { x: 0, dir: 1, frame: 0, mood: 'walk', hold: 0, idle: 0 }
 const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0 }
-const STRANGER: PetProfile = { species: DEFAULT_SPECIES, pets: {} }
+const STRANGER: PetProfile = { species: DEFAULT_SPECIES, size: DEFAULT_SIZE, pets: {} }
 
 const pet = atom({ plugin: 'pets', key: 'pet' } as const, NEWBORN)
 const profile = atom({ plugin: 'pets', key: 'profile' } as const, STRANGER)
@@ -93,6 +96,15 @@ function levelOf(stats: PetStats): number {
   return 1 + Math.floor(Math.sqrt(xpOf(stats) / XP_CURVE))
 }
 
+/** How far it is from this level to the next, 0 to 1. */
+function progressOf(stats: PetStats): number {
+  const level = levelOf(stats)
+  const from = XP_CURVE * (level - 1) ** 2
+  const to = XP_CURVE * level ** 2
+
+  return (xpOf(stats) - from) / (to - from)
+}
+
 function count(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0
 }
@@ -118,10 +130,11 @@ function toProfile(kept: unknown): PetProfile {
   }
 
   const species = typeof kept.species === 'string' && kept.species in SPECIES ? kept.species : DEFAULT_SPECIES
+  const size = isSize(kept.size) ? kept.size : DEFAULT_SIZE
 
   // 0.1.0 before per-pet levels kept one pet's fields beside `species`.
   if (!isRecord(kept.pets)) {
-    return { species, pets: { [species]: toStats(kept) } }
+    return { species, size, pets: { [species]: toStats(kept) } }
   }
 
   const pets: Record<string, PetStats> = {}
@@ -132,7 +145,11 @@ function toProfile(kept: unknown): PetProfile {
     }
   }
 
-  return { species, pets }
+  return { species, size, pets }
+}
+
+function isSize(value: unknown): value is PetSize {
+  return typeof value === 'string' && (SIZES as readonly string[]).includes(value)
 }
 
 function compact(tokens: number): string {
@@ -186,8 +203,8 @@ function step(one: Pet): Pet {
     return { ...one, frame, mood: 'sleep' }
   }
 
-  const x = Math.min(YARD, Math.max(0, one.x + one.dir))
-  const dir = x === 0 ? 1 : x === YARD ? -1 : one.dir
+  const x = Math.min(STEPS, Math.max(0, one.x + one.dir))
+  const dir = x === 0 ? 1 : x === STEPS ? -1 : one.dir
 
   return { ...one, frame, x, dir, mood: 'walk', idle: one.idle + 1 }
 }
@@ -209,142 +226,47 @@ function saysOf(one: Pet, who: PetProfile, isSad: boolean): string {
   }
 }
 
-/** The sprite's twelve pixel rows for this tick: eyes, tear and feet by mood, flipped to face its way. */
-function spriteRows(one: Pet, kind: Species, isSad: boolean): string[] {
-  const rows: string[] = [...kind.rows]
-  const isBlinking = one.mood === 'walk' && one.frame % 9 === 0
+/** The bar beside the level: filled cells for the way to the next one. */
+function barOf(progress: number, cells = BAR_CELLS): [string, string] {
+  const filled = Math.min(cells, Math.max(0, Math.floor(progress * cells)))
 
-  if (one.mood === 'sleep' || one.mood === 'happy' || one.mood === 'love' || isBlinking) {
-    rows[4] = kind.eyesShut[0]
-    rows[5] = kind.eyesShut[1]
-  }
-  if (one.mood === 'walk' && isSad) {
-    rows[6] = kind.tear
-  }
-  if (one.mood !== 'sleep' && one.frame % 2 === 1) {
-    rows[11] = kind.feetApart
-  }
-
-  // Sprites are drawn facing left; mirrored when it walks right.
-  return one.dir === 1 ? rows.map(row => [...row].reverse().join('')) : rows
+  return ['━'.repeat(filled), '━'.repeat(cells - filled)]
 }
 
-/** The scene as pixels, `SCENE_PIXELS` rows of `width`: null where nothing is drawn. */
-function paint(one: Pet, kind: Species, isSad: boolean, width: number): (number | null)[][] {
-  const pixels: (number | null)[][] = Array.from({ length: SCENE_PIXELS }, () =>
-    Array.from({ length: width }, () => null),
-  )
-  const stamp = (rows: readonly string[], ink: Readonly<Record<string, number>>, left: number, top: number) => {
-    rows.forEach((row, y) => {
-      [...row].forEach((mark, x) => {
-        const line = pixels[top + y]
-        const color = ink[mark]
-
-        if (line !== undefined && left + x < width && color !== undefined) {
-          line[left + x] = color
-        }
-      })
-    })
-  }
-
-  const left = Math.round((one.x / YARD) * Math.max(0, width - SPRITE_CELLS - HEART_CELLS))
-  const isBouncy = one.mood === 'walk' || one.mood === 'happy'
-  const top = isBouncy && one.frame % 2 === 1 ? 1 : 2
-
-  stamp(spriteRows(one, kind, isSad), kind.ink, left, top)
-  if (one.mood === 'love') {
-    stamp(HEART, { h: HEART_INK }, left + SPRITE_CELLS + 1, one.frame % 2)
-  }
-
-  return pixels
+/** What it has lived through, as the stats rows show it: label, count, and what one is worth. */
+function tallyOf(stats: PetStats): [string, string, string][] {
+  return [
+    ['tool calls', String(stats.tools), '+1'],
+    ['turns', String(stats.turns), `+${XP_PER_TURN}`],
+    ['pats', String(stats.pats), `+${XP_PER_PAT}`],
+    ['output tokens', compact(stats.tokens), '1K +1'],
+  ]
 }
 
-type Cell = { glyph: string; fg: number | null; bg: number | null }
-
-/** Folds each pair of pixel rows into one row of half-block cells. */
-function toCells(pixels: (number | null)[][]): Cell[][] {
-  const lines: Cell[][] = []
-
-  for (let y = 0; y + 1 < pixels.length; y += 2) {
-    const upper = pixels[y] ?? []
-    const lower = pixels[y + 1] ?? []
-
-    lines.push(
-      upper.map((top, x) => {
-        const bottom = lower[x] ?? null
-
-        if (top === null) {
-          return bottom === null ? { glyph: ' ', fg: null, bg: null } : { glyph: '▄', fg: bottom, bg: null }
-        }
-
-        return top === bottom ? { glyph: '█', fg: top, bg: null } : { glyph: '▀', fg: top, bg: bottom }
-      }),
-    )
-  }
-
-  return lines
-}
-
-/** `Raster`'s packing: little-endian u32 triplets `[codePoint, foreground, background]`, base64. */
-function pack(lines: Cell[][]): string {
-  const words = new Uint32Array(lines.flat().flatMap(cell => [
-    cell.glyph.codePointAt(0) ?? 0x20,
-    cell.fg ?? DEFAULT_COLOR,
-    cell.bg ?? DEFAULT_COLOR,
-  ]))
-
-  // The environment has Uint8Array.prototype.toBase64; the es2023 lib does not declare it yet.
-  const bytes = new Uint8Array(words.buffer) as Uint8Array & { toBase64(): string }
-
-  return bytes.toBase64()
-}
-
-type Run = { text: string; color?: string; backgroundColor?: string }
-
-function hex(color: number): string {
-  return `#${color.toString(16).padStart(6, '0')}`
-}
-
-/** One line of cells as runs of equal style: what a surface without `Raster` draws as `Text`. */
-function toRuns(line: Cell[]): Run[] {
-  const runs: (Run & { fg: number | null; bg: number | null })[] = []
-
-  for (const cell of line) {
-    const last = runs.at(-1)
-
-    if (last !== undefined && last.fg === cell.fg && last.bg === cell.bg) {
-      last.text += cell.glyph
-    } else {
-      runs.push({
-        text: cell.glyph,
-        fg: cell.fg,
-        bg: cell.bg,
-        ...(cell.fg === null ? {} : { color: hex(cell.fg) }),
-        ...(cell.bg === null ? {} : { backgroundColor: hex(cell.bg) }),
-      })
-    }
-  }
-
-  return runs.map(({ fg, bg, ...run }) => run)
+/** The same in one line, for the SVG card. */
+function tallyLine(stats: PetStats): string {
+  return `${stats.tools} tools · ${stats.turns} turns · ${stats.pats} pats · ${compact(stats.tokens)} tokens`
 }
 
 /**
- * Opens the pane. Resolves to what the reply should add: nothing once drawn, else why it
- * waits undrawn (a surface that places no panes), so `/pet` never claims a pet nobody can see.
+ * Opens the pane, asking for the rows its size draws: the yard and the line above it.
+ * Resolves to what the reply should add: nothing once drawn, else why it waits undrawn
+ * (a surface that places no panes), so `/pet` never claims a pet nobody can see.
  */
-async function openPane($: EngineInterface): Promise<string> {
-  const opened = await $.ui.open({ id: PANE, title: TITLE, rows: PANE_ROWS })
+async function openPane($: EngineInterface, who: PetProfile): Promise<string> {
+  const opened = await $.ui.open({ id: PANE, title: TITLE, rows: terminalRows(speciesOf(who), who.size) + 1 })
 
   return opened.isPlaced ? '' : ` The pane is not on screen: ${opened.reason}`
 }
 
 /**
- * Applies `change` to the pet that is out and keeps the result across sessions.
+ * Applies `change` to the pet that is out and keeps the result, with the species and size
+ * this session chose, across sessions.
  * It reads the store first, so what another session saved meanwhile is added to, not overwritten.
  */
 async function grow($: EngineInterface, change: (stats: PetStats) => PetStats): Promise<PetProfile> {
-  const { species } = await read($, profile)
-  const now = withStats({ ...toProfile(await $.store.get(PROFILE_KEY)), species }, change)
+  const { species, size } = await read($, profile)
+  const now = withStats({ ...toProfile(await $.store.get(PROFILE_KEY)), species, size }, change)
   await $.store.set(PROFILE_KEY, now)
   await update($, profile, () => now)
 
@@ -377,12 +299,12 @@ export const register: Register = on => {
 
     switch (verb) {
       case '':
-        return { text: `${called} is out.${await openPane($)}` }
+        return { text: `${called} is out.${await openPane($, who)}` }
       case 'pat': {
         await update($, pet, one => act(one, 'love', 8))
-        await grow($, stats => ({ ...stats, pats: stats.pats + 1 }))
+        const unseen = await openPane($, await grow($, stats => ({ ...stats, pats: stats.pats + 1 })))
 
-        return { text: `${called} is pleased.${await openPane($)}` }
+        return { text: `${called} is pleased.${unseen}` }
       }
       case 'name': {
         const given = cleanName(rest.join(' '))
@@ -391,9 +313,9 @@ export const register: Register = on => {
           return { text: `${called} is listening. Name it with /pet name <name>.` }
         }
 
-        await grow($, stats => ({ ...stats, name: given }))
+        const unseen = await openPane($, await grow($, stats => ({ ...stats, name: given })))
 
-        return { text: `${called} is now ${given}.${await openPane($)}` }
+        return { text: `${called} is now ${given}.${unseen}` }
       }
       case 'choose': {
         const wanted = rest[0] ?? ''
@@ -405,8 +327,19 @@ export const register: Register = on => {
         await update($, profile, last => ({ ...last, species: wanted }))
         const now = await grow($, stats => stats)
         shownLevel = levelOf(statsOf(now))
+        return { text: `${calledOf(now)} is out.${await openPane($, now)}` }
+      }
+      case 'size': {
+        const wanted = rest[0] ?? ''
 
-        return { text: `${calledOf(now)} is out.${await openPane($)}` }
+        if (!isSize(wanted)) {
+          return { text: `${called} is ${who.size}. Choose one of: ${SIZES.join(', ')}` }
+        }
+
+        await update($, profile, last => ({ ...last, size: wanted }))
+        const unseen = await openPane($, await grow($, stats => stats))
+
+        return { text: `${called} is ${wanted} now.${unseen}` }
       }
       case 'status':
         return { text: statusOf(who) }
@@ -463,43 +396,92 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
     const [one, who, isSad] = await Promise.all([read($, pet), read($, profile), read($, isWorried)])
+    const kind = speciesOf(who)
     const stats = statsOf(who)
-    const yard = Math.max(SPRITE_CELLS + HEART_CELLS, Math.min(40, e.props.bodyColumns - 2))
-    const scene = toCells(paint(one, speciesOf(who), isSad, yard))
-    const grass = (cells: number) => '‿'.repeat(Math.max(0, cells))
-    let petView
+    const says = saysOf(one, who, isSad)
+    const { unit } = lookOf(who.size)
+    const fewest = minWidth(kind, who.size)
 
     if (e.surface === 'terminal') {
-      const { Raster } = $.ui.resolve(e)
-      petView = <Raster key="pet" columns={yard} rows={scene.length} cells={pack(scene)} />
-    } else {
-      petView = scene.map(line => (
-        <Box>
-          {toRuns(line).map(({ text, ...style }) => (
-            <Text {...style}>{text}</Text>
-          ))}
+      const { Box, Text, Raster } = $.ui.resolve(e)
+      // Stats go beside the yard above a wide prompt, under it in the tall, narrow dock,
+      // and nowhere when neither has room: then the level line carries them.
+      const isDocked = e.props.placement === 'dock'
+      const isBeside = !isDocked && e.props.bodyColumns >= fewest + PANEL + 4
+      const room = isBeside ? e.props.bodyColumns - PANEL - 4 : e.props.bodyColumns - 2
+      const columns = Math.max(fewest, Math.min(MAX_YARD, room))
+      const scene = paint(one, kind, who.size, isSad, columns, STEPS)
+      const cells = toCells(scene.pixels)
+      const width = cells[0]?.length ?? 0
+      const level = levelOf(stats)
+      const hasPanel = isDocked || isBeside
+      const [filled, empty] = barOf(progressOf(stats))
+      const [wide, rest] = barOf(progressOf(stats), PANEL_BAR)
+      const yard = <Raster key="pet" columns={width} rows={cells.length} cells={pack(cells)} />
+      const panel = (
+        <Box flexDirection="column" width={PANEL} paddingLeft={isBeside ? 2 : 0}>
+          <Text color={PASTEL.gray} dimColor>{kind.label.toUpperCase()}</Text>
+          <Box>
+            <Text color={PASTEL.pink} bold>{`Lv ${level}`}</Text>
+            <Text color={PASTEL.gray}>{`  ${xpOf(stats)} / ${XP_CURVE * level * level} xp`}</Text>
+          </Box>
+          <Box>
+            <Text color={PASTEL.pink}>{wide}</Text>
+            <Text color={PASTEL.dim}>{rest}</Text>
+          </Box>
+          {who.size === 'small' ? (
+            <>
+              <Text color={PASTEL.gray}>{`${stats.tools} tools · ${stats.turns} turns`}</Text>
+              <Text color={PASTEL.gray}>{`${stats.pats} pats · ${compact(stats.tokens)} tokens`}</Text>
+            </>
+          ) : (
+            tallyOf(stats).map(([label, value, worth]) => (
+              <Box key={label}>
+                <Text color={PASTEL.gray}>{label.padEnd(14)}</Text>
+                <Text>{value.padStart(6)}</Text>
+                <Text color={PASTEL.green}>{`  ${worth}`}</Text>
+              </Box>
+            ))
+          )}
         </Box>
-      ))
+      )
+
+      return (
+        <Box flexDirection="column">
+          <Box>
+            {stats.name !== '' && (
+              <Text backgroundColor={PASTEL.pink} color={PASTEL.ink} bold>
+                {` ${stats.name} `}
+              </Text>
+            )}
+            {!hasPanel && <Text color={PASTEL.gray}>{` Lv ${level} `}</Text>}
+            {!hasPanel && <Text color={PASTEL.pink}>{filled}</Text>}
+            {!hasPanel && <Text color={PASTEL.dim}>{empty}</Text>}
+            {says !== '' && <Text color={PASTEL.yellow}>{`  ${says}`}</Text>}
+          </Box>
+          {isBeside ? (
+            <Box>
+              {yard}
+              {panel}
+            </Box>
+          ) : (
+            yard
+          )}
+          {isDocked && <Box marginTop={1}>{panel}</Box>}
+        </Box>
+      )
     }
 
-    return (
-      <Box flexDirection="column">
-        <Box>
-          {stats.name !== '' && <Text color={PASTEL.pink} bold>{stats.name} </Text>}
-          <Text color={PASTEL.gray}>Lv {levelOf(stats)}  </Text>
-          <Text color={PASTEL.yellow}>{saysOf(one, who, isSad)}</Text>
-        </Box>
-        {petView}
-        <Box>
-          <Text color={PASTEL.green}>{grass(3)}</Text>
-          <Text color={PASTEL.pink}>✿</Text>
-          <Text color={PASTEL.green}>{grass(yard - 14)}</Text>
-          <Text color={PASTEL.yellow}>❀</Text>
-          <Text color={PASTEL.green}>{grass(9)}</Text>
-        </Box>
-      </Box>
-    )
+    // Desktop, VS Code and mobile draw an SVG card: half blocks in a proportional line
+    // height leave seams between rows, and an SVG scales to the slot's width.
+    const { Svg } = $.ui.resolve(e)
+    const tally = tallyLine(stats)
+    const across = Math.max(fewest, cardWidthFor(who.size, tally), Math.min(MAX_CARD, Math.floor((e.props.bodyColumns * CELL_PX) / unit) - 4))
+    const scene = paint(one, kind, who.size, isSad, across, STEPS, false)
+    const caption = { name: stats.name, level: levelOf(stats), progress: progressOf(stats), says, tally }
+    const alt = `${titleOf(who)}, Lv ${levelOf(stats)}${says === '' ? '' : `: ${says}`}`
+
+    return <Svg source={toSvg(scene, who.size, caption)} alt={alt} />
   })
 }

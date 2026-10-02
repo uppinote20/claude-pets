@@ -14,7 +14,8 @@ claude-pets/
 ├── hooks/
 │   ├── hooks.json         # { "modules": ["./register.tsx"] }
 │   ├── register.tsx       # Hooks: /pet command, tool/turn/rate-limit reactions, Pane render
-│   └── species.ts         # Sprites: 12×12 per species
+│   ├── scene.ts           # Pure drawing: pixels, half-block cells, SVG card, sizes
+│   └── species.ts         # Sprites: big 12×12 and mini 8×8 per species
 ├── types/index.d.ts       # State contract ($.state values under `pets`)
 ├── tests/pet.test.ts      # `claude plugin test .`
 ├── scripts/sprites.mjs    # Regenerates assets/*.svg from the sprite data
@@ -35,7 +36,8 @@ claude --plugin-dir .                               # try it in a session
 ## Conventions
 
 - The hooks module runs with no DOM and no Node: everything outside goes through `$`. Elements come from `$.ui.resolve(e)`, never globals.
-- Terminal draws a `Raster` of half-block cells; desktop, VS Code and mobile draw the same pixels as text runs. A change to one surface needs a test on the other.
+- Keep drawing logic in `hooks/scene.ts` with no `$`, so tests and scripts draw what the pane draws.
+- Terminal draws a `Raster` of half-block cells; desktop, VS Code and mobile draw an `Svg` card. A change to one surface needs a test on the other.
 - `$.store` content may come from any earlier version: read it field by field (`toProfile`) and never assume a shape.
 - Write to `$.store` once per turn at most (`grow`), not on every tool call.
 - No runtime dependencies.

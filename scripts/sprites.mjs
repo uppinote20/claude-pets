@@ -1,5 +1,5 @@
 // Writes assets/<species>.svg from the sprite data, so the README shows the plugin's own pixels.
-// Run with Node 22.18+: node scripts/sprites.mjs
+// Run with Node 22.18+ (TypeScript imports): node scripts/sprites.mjs
 // @handbook 4.4-readme-asset-generation
 import { mkdirSync, writeFileSync } from 'node:fs'
 
@@ -12,8 +12,8 @@ const BACKDROP = '#1e1e2e'
 mkdirSync(new URL('../assets/', import.meta.url), { recursive: true })
 
 for (const [id, species] of Object.entries(SPECIES)) {
-  const side = (species.rows.length + MARGIN * 2) * PIXEL
-  const pixels = species.rows.flatMap((row, y) =>
+  const side = (species.big.rows.length + MARGIN * 2) * PIXEL
+  const pixels = species.big.rows.flatMap((row, y) =>
     [...row].flatMap((mark, x) => {
       const color = species.ink[mark]
 
