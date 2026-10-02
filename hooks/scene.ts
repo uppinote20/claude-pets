@@ -58,6 +58,8 @@ export const PALETTE = {
 const HEART = ['hh.hh', 'hhhhh', '.hhh.', '..h..'] as const
 /** The happy sparkle, and a star's twinkle. */
 const SPARKLE = ['.s.', 'sws', '.s.'] as const
+const GIFT = ['y.y..', '.y...', 'ppypp', 'ppypp', 'ppypp'] as const
+const GIFT_INK = { p: 0xff9ec4, y: 0xffe36e } as const
 /** Columns kept free beside the sprite for the heart or sparkle. */
 const BADGE = 6
 
@@ -102,7 +104,7 @@ export function spriteRows(one: Pet, sprite: Sprite, isSad: boolean): string[] {
     }
   }
 
-  if (one.mood === 'sleep' || one.mood === 'happy' || one.mood === 'love' || isBlinking) {
+  if (one.mood === 'sleep' || one.mood === 'happy' || one.mood === 'love' || one.mood === 'gift' || isBlinking) {
     swap(sprite.eyesShut)
   }
   if (one.mood === 'walk' && isSad) {
@@ -179,7 +181,7 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
   }
 
   const left = Math.round((one.x / steps) * Math.max(0, width - spriteWidth - BADGE))
-  const isBouncy = one.mood === 'walk' || one.mood === 'happy'
+  const isBouncy = one.mood === 'walk' || one.mood === 'happy' || one.mood === 'gift'
   const rest = grassTop - sprite.rows.length
   const top = isBouncy && one.frame % 2 === 1 ? rest - 1 : rest
 
@@ -208,6 +210,10 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
 
   if (one.mood === 'love') {
     stamp(HEART, { h: PALETTE.heart }, left + spriteWidth + 1, Math.max(0, top - 1 + (one.frame % 2)))
+  }
+  if (one.mood === 'gift') {
+    // The gift it found, bobbing beside it.
+    stamp(GIFT, GIFT_INK, left + spriteWidth + 1, Math.max(0, top - 1 + (one.frame % 2)))
   }
   if (one.mood === 'happy') {
     const isLeft = one.frame % 2 === 0

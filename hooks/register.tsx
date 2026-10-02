@@ -22,6 +22,7 @@ import type { Pet, PetProfile, PetSize, PetStats, QuestView, RunView } from '../
 import { DEFAULT_SIZE, SIZES, cardWidthFor, lookOf, pixelsSvg, stageOf, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
 import { QUEST_HEIGHT, QUEST_TICK_MS, STAGES, advanceQuest, jumpQuest, newQuest, paintQuest, questScore } from './quest'
 import type { Quest } from './quest'
+import { GIFT_CHANCE, LUCKY_PAT_CHANCE, SHINY_CHANCE, giftOf, worthOf } from './luck'
 import { RUN_HEIGHT, RUN_TICK_MS, advance, jump, newRun, paintRun, scoreOf } from './run'
 import type { Run } from './run'
 import { DEFAULT_SPECIES, SPECIES } from './species'
@@ -62,7 +63,7 @@ const PANEL_BAR = 20
 
 const PASTEL = { yellow: '#ffd787', pink: '#ffafd7', green: '#afd7af', ink: '#3a2a2a', gray: '#b2b2b2', dim: '#5f5f5f' } as const
 const NEWBORN: Pet = { x: 0, dir: 1, frame: 0, mood: 'walk', hold: 0, idle: 0 }
-const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0 }
+const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false }
 const STRANGER: PetProfile = { species: DEFAULT_SPECIES, size: DEFAULT_SIZE, pets: {} }
 
 const pet = atom({ plugin: 'pets', key: 'pet' } as const, NEWBORN)
@@ -84,8 +85,11 @@ let quest: Quest | null = null
 let questTicker: { cancel: () => void } | null = null
 const questView = atom({ plugin: 'pets', key: 'quest' } as const, { stage: 0, phase: 'ready', score: 0, snacks: 0 } as QuestView)
 
+/** The species of the pet that is out, in its shiny colors when it is one. */
 function speciesOf(who: PetProfile): Species {
-  return SPECIES[who.species] ?? SPECIES[DEFAULT_SPECIES]!
+  const kind = SPECIES[who.species] ?? SPECIES[DEFAULT_SPECIES]!
+
+  return who.pets[who.species]?.shiny === true ? { ...kind, ink: { ...kind.ink, ...kind.shiny } } : kind
 }
 
 /** The pet that is out: a species never chosen before starts from nothing. */
@@ -105,13 +109,15 @@ function calledOf(who: PetProfile): string {
 
 /** `초코 the cat`, or `The cat` while it has no name. */
 function titleOf(who: PetProfile): string {
-  const { name } = statsOf(who)
+  const { name, shiny } = statsOf(who)
+  const label = `${shiny ? 'shiny ' : ''}${speciesOf(who).label}`
 
-  return name === '' ? `The ${speciesOf(who).label}` : `${name} the ${speciesOf(who).label}`
+  return name === '' ? `The ${label}` : `${name} the ${label}`
 }
 
 /**
- * A tool call is 1, a pat 2, a finished turn 5, a Pet Run snack 1, and every thousand output tokens 1.
+ * A tool call is 1, a pat 2, a finished turn 5, a game snack 1, every thousand output tokens 1,
+ * and whatever luck brought (gifts, lucky pats).
  * Output only: input and cache reads grow with the conversation's length, not with the work done.
  */
 function xpOf(stats: PetStats): number {
@@ -120,7 +126,8 @@ function xpOf(stats: PetStats): number {
     stats.turns * XP_PER_TURN +
     stats.pats * XP_PER_PAT +
     Math.floor(stats.tokens / TOKENS_PER_XP) +
-    stats.snacks * XP_PER_SNACK
+    stats.snacks * XP_PER_SNACK +
+    stats.bonus
   )
 }
 
@@ -159,6 +166,9 @@ function toStats(fields: Record<string, unknown>): PetStats {
     snacks: count(fields.snacks),
     best: count(fields.best),
     cleared: count(fields.cleared),
+    gifts: count(fields.gifts),
+    bonus: count(fields.bonus),
+    shiny: fields.shiny === true,
   }
 }
 
@@ -216,6 +226,7 @@ function statusOf(who: PetProfile): string {
     ...(stats.cleared === 0 ? [] : [`Pet Quest ${stats.cleared}/${STAGES.length} stages cleared`]),
     // Snacks from both games, one count.
     ...(stats.snacks === 0 ? [] : [`${stats.snacks} snacks`]),
+    ...(stats.gifts === 0 ? [] : [`${stats.gifts} gifts found`]),
     ...(others.length === 0 ? [] : [`Also: ${others.join(', ')}`]),
   ].join(' · ')
 }
@@ -264,6 +275,8 @@ function saysOf(one: Pet, who: PetProfile, isSad: boolean): string {
       return beat === 0 ? '. .' : '. . .'
     case 'love':
       return `${speciesOf(who).purr} ×${statsOf(who).pats}`
+    case 'gift':
+      return 'a gift!'
     case 'walk':
       return isSad ? 'limits are close…' : ''
   }
@@ -458,7 +471,11 @@ function announce($: EngineInterface, now: PetProfile, shown: number): number {
   return level
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  // Off, nothing is left to chance: no gifts, no lucky pats, no shiny pets.
+  const hasLuck = options.luck !== false
+  const lucky = (chance: number) => hasLuck && Math.random() < chance
+
   // Tool calls since the last save: the store is written once a turn, not on every call.
   let unsavedTools = 0
 
@@ -484,11 +501,12 @@ export const register: Register = on => {
       case '':
         return { text: `${called} is out.${await openPane($, who)}` }
       case 'pat': {
+        const isLucky = lucky(LUCKY_PAT_CHANCE)
         await update($, pet, one => act(one, 'love', 8))
-        const now = await grow($, stats => ({ ...stats, pats: stats.pats + 1 }))
+        const now = await grow($, stats => ({ ...stats, pats: stats.pats + 1, bonus: stats.bonus + (isLucky ? XP_PER_PAT * 2 : 0) }))
         shownLevel = announce($, now, shownLevel)
 
-        return { text: `${called} is pleased.${await openPane($, now)}` }
+        return { text: `${called} is pleased.${isLucky ? ` Lucky pat! +${XP_PER_PAT * 3} xp` : ''}${await openPane($, now)}` }
       }
       case 'name': {
         const given = cleanName(rest.join(' '))
@@ -510,10 +528,14 @@ export const register: Register = on => {
 
         // What a game in progress earned belongs to the pet that played it.
         await settleGames($)
+        // A pet met for the first time may be a rare shiny.
+        const isNew = !(wanted in who.pets)
+        const isShiny = isNew && lucky(SHINY_CHANCE)
         await update($, profile, last => ({ ...last, species: wanted }))
-        const now = await grow($, stats => stats)
+        const now = await grow($, stats => (isShiny ? { ...stats, shiny: true } : stats))
         shownLevel = levelOf(statsOf(now))
-        return { text: `${calledOf(now)} is out.${await openPane($, now)}` }
+
+        return { text: `${calledOf(now)} is out.${isShiny ? ` A shiny ${wanted}! It is rare: one in ${Math.round(1 / SHINY_CHANCE)}.` : ''}${await openPane($, now)}` }
       }
       case 'size': {
         const wanted = rest[0] ?? ''
@@ -606,14 +628,31 @@ export const register: Register = on => {
     const tokens = e.usage?.output_tokens ?? 0
     unsavedTools = 0
 
-    const now = await grow($, stats => ({
-      ...stats,
-      tools: stats.tools + tools,
-      turns: stats.turns + (isMain ? 1 : 0),
-      tokens: stats.tokens + tokens,
-    }))
+    // Now and then a finished turn of the main conversation turns up a gift.
+    const gift = isMain && lucky(GIFT_CHANCE) ? giftOf(Math.random()) : null
+    let worth = { xp: 0, makesShiny: false }
+    const now = await grow($, stats => {
+      worth = gift === null ? worth : worthOf(gift, stats.shiny)
 
-    if (isMain) {
+      return {
+        ...stats,
+        tools: stats.tools + tools,
+        turns: stats.turns + (isMain ? 1 : 0),
+        tokens: stats.tokens + tokens,
+        gifts: stats.gifts + (gift === null ? 0 : 1),
+        bonus: stats.bonus + worth.xp,
+        shiny: stats.shiny || worth.makesShiny,
+      }
+    })
+
+    if (gift !== null) {
+      await update($, pet, one => act(one, 'gift', 12))
+      $.ui.toast(
+        worth.makesShiny
+          ? `${calledOf(now)} found a sparkle stone and turned shiny!`
+          : `${calledOf(now)} found ${gift.kind === 'xp' ? gift.name : 'another sparkle stone'}! +${worth.xp} xp`,
+      )
+    } else if (isMain) {
       await update($, pet, one => act(one, 'happy', 10))
     }
     shownLevel = announce($, now, shownLevel)
@@ -657,7 +696,7 @@ export const register: Register = on => {
       const yard = <Raster key="pet" columns={width} rows={cells.length} cells={pack(cells)} />
       const panel = (
         <Box flexDirection="column" width={PANEL} paddingLeft={isBeside ? 2 : 0}>
-          <Text color={PASTEL.gray} dimColor>{stage === 'baby' ? kind.label.toUpperCase() : `${kind.label.toUpperCase()} · ${stage.toUpperCase()}`}</Text>
+          <Text color={PASTEL.gray} dimColor>{`${kind.label.toUpperCase()}${stats.shiny ? ' ✦' : ''}${stage === 'baby' ? '' : ` · ${stage.toUpperCase()}`}`}</Text>
           <Box>
             <Text color={PASTEL.pink} bold>{`Lv ${level}`}</Text>
             <Text color={PASTEL.gray}>{`  ${xpOf(stats)} / ${XP_CURVE * level * level} xp`}</Text>
