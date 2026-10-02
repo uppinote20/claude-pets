@@ -81,7 +81,7 @@ test('the pet paces, takes a pat, a name and a species, and leaves when told', a
   expect(await pane.find({ type: 'Text', text: ' 나비 ' })).toBeDefined()
 
   const asCat = await cells()
-  expect(await run('choose dragon')).toBe('Choose one of: cat, chick, dog, slime')
+  expect(await run('choose dragon')).toBe('Choose one of: cat, chick, dog, slime, bunny, hamster, penguin, frog')
   expect(await run('choose chick')).toBe('The chick is out.')
   expect(await cells()).not.toBe(asCat)
   expect(await pane.find({ type: 'Text', text: /^ Lv 1 / })).toBeDefined()
