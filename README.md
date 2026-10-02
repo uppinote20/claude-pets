@@ -109,7 +109,7 @@ As it grows the pet takes after you. Its **nature** comes from what it has seen 
 | gamer | Pet Run and Pet Quest snacks | runs faster and kicks a ball along; as an adult, wears a headset |
 | curious | (until one side stands out) | sniffs around |
 
-Its nature follows its **leaning**: shares of the four sides that move a little toward whatever each finished turn brings (its tool calls, its talk, the pats and game snacks since). Old habits fade, so a pet kept differently changes with it, slowly.
+Its nature follows its **leaning**: shares of the four sides that move toward whatever each day brought (its tool calls, its talk, its pats and game snacks), once a day, by 12%. A long session changes nothing until the day is over, and a heavy day counts as one day. Old habits fade, so a pet kept differently changes with it, slowly: a new prop shows after a few days of a new habit, a new form after about two weeks.
 
 The yard shows the leaning as it grows. Each side fills it one prop at a time and tints the grass its way: a building site (cones, barriers, rocks, a warning sign), a library corner (a bookshelf, a lamp, a globe, a stack of books), a garden (tulips, a heart bush, a flower pot, a butterfly), an arcade (a cabinet, a trophy, a coin, a joystick). A mixed leaning makes a mixed yard. An adult whose leaning has clearly moved on (the new side well ahead, the old one faded) takes the new side's form and gear; a toast says so. The rare form stays.
 

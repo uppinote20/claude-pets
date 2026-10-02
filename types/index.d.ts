@@ -38,6 +38,9 @@ export type PetStats = {
    * brought: it shapes the yard, its nature, and an adult's form over time.
    */
   leaning: number[]
+  /** The local day being tallied (YYYY-MM-DD) and what it has brought so far, side by side. */
+  day: string
+  brought: number[]
 }
 
 /** What the Pet Quest pane's text shows. */

@@ -52,8 +52,12 @@ export function sidesOf(stats: PetStats): Record<Exclude<Nature, 'curious'>, num
 export { SIDES } from './scene'
 export type { Side } from './scene'
 
-/** How fast the leaning follows what each finished turn brought: a turn moves it 3% of the way. */
-const DRIFT = 0.03
+/**
+ * How far one day moves the leaning toward what that day brought: 12%. Days, not turns, so a
+ * long session changes nothing until the day is over, and a heavy day counts as one day:
+ * a new prop shows after a few days of a new habit, a new form after about two weeks.
+ */
+const DRIFT = 0.12
 
 /** A weighting as shares that sum to 1, or all zero when there is nothing to share. */
 function shares(weights: readonly number[]): number[] {
@@ -70,9 +74,9 @@ export function lifetimeLeaning(stats: PetStats): number[] {
 }
 
 /**
- * The leaning after a turn: each side moves a little toward what the turn brought (its tools,
- * itself and its output, the pats and game snacks since the last turn). Old habits fade, so a
- * pet that changes how it is kept changes with it, slowly.
+ * The leaning after a day: each side moves a little toward what the day brought (its tool
+ * calls, its turns and their output, its pats and game snacks). Old habits fade, so a pet that
+ * changes how it is kept changes with it, slowly.
  */
 export function driftLeaning(leaning: readonly number[], brought: Readonly<Record<Side, number>>): number[] {
   const now = shares(SIDES.map(side => brought[side]))
@@ -111,7 +115,7 @@ export function natureOf(stats: PetStats): Nature {
 }
 
 /**
- * An adult's form after a turn: it keeps its form until its leaning has clearly moved on (the
+ * An adult's form after a day: it keeps its form until its leaning has clearly moved on (the
  * new side well ahead, the old one faded), then takes the new side's. The rare form stays.
  */
 export function reformOf(form: string, leaning: readonly number[]): string {

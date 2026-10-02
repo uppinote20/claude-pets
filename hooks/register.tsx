@@ -26,7 +26,7 @@ import { QUEST_HEIGHT, QUEST_TICK_MS, STAGES, advanceQuest, jumpQuest, newQuest,
 import type { Quest } from './quest'
 import type { Form } from './scene'
 import { DAYPARTS, SIDES, daypartOf, driftLeaning, isKnown, lifetimeLeaning, musingOf, natureOf, reformOf, rhythmOf } from './nature'
-import type { Daypart, Nature } from './nature'
+import type { Daypart, Nature, Side } from './nature'
 import { GIFT_CHANCE, LUCKY_PAT_CHANCE, RARE_CHANCE, SHINY_CHANCE, giftOf, worthOf } from './luck'
 import { RUN_HEIGHT, RUN_TICK_MS, advance, jump, newRun, paintRun, scoreOf } from './run'
 import type { Run } from './run'
@@ -68,7 +68,7 @@ const PANEL_BAR = 20
 
 const PASTEL = { yellow: '#ffd787', pink: '#ffafd7', green: '#afd7af', ink: '#3a2a2a', gray: '#b2b2b2', dim: '#5f5f5f' } as const
 const NEWBORN: Pet = { x: 0, dir: 1, frame: 0, mood: 'walk', hold: 0, idle: 0 }
-const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0], form: '', leaning: [] }
+const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0], form: '', leaning: [], day: '', brought: [0, 0, 0, 0] }
 const STRANGER: PetProfile = { species: DEFAULT_SPECIES, size: DEFAULT_SIZE, pets: {} }
 
 const pet = atom({ plugin: 'pets', key: 'pet' } as const, NEWBORN)
@@ -117,6 +117,33 @@ function formName(kind: Species, form: Form): string {
 let utcOffset = 0
 // The engine's clock as of the last tick (tests move it with mock.clock).
 let clockNow = Date.now()
+
+/** The person's local date, `YYYY-MM-DD`: the leaning moves once a day. */
+function dayNow(): string {
+  return new Date(clockNow + utcOffset * 60_000).toISOString().slice(0, 10)
+}
+
+/**
+ * Tallies what a turn brought into the day's count; when the day has changed, first moves the
+ * leaning toward the day before and lets an adult follow it. Pats and game snacks count from
+ * the last turn's totals.
+ */
+function tally(stats: PetStats, brought: Readonly<Record<Side, number>>, today: string): PetStats {
+  const isNewDay = stats.day !== '' && stats.day !== today
+  const start = stats.leaning.length === SIDES.length ? stats.leaning : lifetimeLeaning(stats)
+  const leaning = isNewDay
+    ? driftLeaning(start, Object.fromEntries(SIDES.map((side, at) => [side, stats.brought[at] ?? 0])) as Record<Side, number>)
+    : start
+  const kept = isNewDay ? [0, 0, 0, 0] : stats.brought
+
+  return {
+    ...stats,
+    leaning,
+    form: isNewDay ? reformOf(stats.form, leaning) : stats.form,
+    day: today,
+    brought: SIDES.map((side, at) => (kept[at] ?? 0) + brought[side]),
+  }
+}
 
 /** The quarter of the day it is where the person is. */
 function daypartNow(): Daypart {
@@ -217,6 +244,8 @@ function toStats(fields: Record<string, unknown>): PetStats {
       Array.isArray(fields.leaning) && fields.leaning.length === SIDES.length && fields.leaning.every(share => typeof share === 'number' && share >= 0 && share <= 1)
         ? (fields.leaning as number[])
         : [],
+    day: typeof fields.day === 'string' && /^\d{4}-\d\d-\d\d$/.test(fields.day) ? fields.day : '',
+    brought: SIDES.map((_, at) => (Array.isArray(fields.brought) && typeof fields.brought[at] === 'number' && fields.brought[at] >= 0 ? fields.brought[at] : 0)),
   }
 }
 
@@ -735,22 +764,23 @@ export const register: Register = (on, options) => {
     const { species } = await read($, profile)
     const now = await grow($, stats => {
       worth = gift === null ? worth : worthOf(gift, stats.shiny)
-      // The leaning moves a little toward what this turn brought, and an adult may follow it.
+      // The turn adds to the day's tally; a new day first moves the leaning, and an adult may follow.
       const seen = seenAtTurn.get(species) ?? { pats: stats.pats, snacks: stats.snacks }
-      const leaning = driftLeaning(stats.leaning.length === SIDES.length ? stats.leaning : lifetimeLeaning(stats), {
-        worker: tools,
-        scholar: (isMain ? 5 : 0) + tokens / 1000,
-        sweetie: (stats.pats - seen.pats) * 2,
-        gamer: stats.snacks - seen.snacks,
-      })
+      const tallied = tally(
+        stats,
+        {
+          worker: tools,
+          scholar: (isMain ? 5 : 0) + tokens / 1000,
+          sweetie: (stats.pats - seen.pats) * 2,
+          gamer: stats.snacks - seen.snacks,
+        },
+        dayNow(),
+      )
       seenAtTurn.set(species, { pats: stats.pats, snacks: stats.snacks })
-      const form = reformOf(stats.form, leaning)
-      reformed = form !== stats.form ? form : ''
+      reformed = tallied.form !== stats.form ? tallied.form : ''
 
       return {
-        ...stats,
-        leaning,
-        form,
+        ...tallied,
         tools: stats.tools + tools,
         turns: stats.turns + (isMain ? 1 : 0),
         tokens: stats.tokens + tokens,

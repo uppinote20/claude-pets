@@ -647,7 +647,7 @@ test('a shiny pet is drawn in its shiny colors and says so', async ($, on) => {
 })
 
 test('a nature shows once one side of it stands out, and a rhythm once its hours do', () => {
-  const none = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0], form: '', leaning: [] }
+  const none = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0], form: '', leaning: [], day: '', brought: [0, 0, 0, 0] }
 
   expect(natureOf({ ...none, tools: 30 })).toBe('curious')
   expect(natureOf({ ...none, tools: 300, turns: 10 })).toBe('worker')
@@ -780,11 +780,11 @@ test('an adult without a drawing of its own is the teen in its gear, and the rar
   expect(colors('worker').has(0xc3cde0)).toBe(false)
 })
 
-test('the leaning drifts toward what turns bring, and an adult follows only once it has clearly moved on', () => {
+test('the leaning drifts toward what a day brought, and an adult follows only once it has clearly moved on', () => {
   const worker = [0.9, 0.05, 0.03, 0.02]
   const after = driftLeaning(worker, { worker: 0, scholar: 10, sweetie: 0, gamer: 0 })
 
-  expect(after.map(share => Math.round(share * 10_000) / 10_000)).toEqual([0.873, 0.0785, 0.0291, 0.0194])
+  expect(after.map(share => Math.round(share * 10_000) / 10_000)).toEqual([0.792, 0.164, 0.0264, 0.0176])
   expect(driftLeaning(worker, { worker: 0, scholar: 0, sweetie: 0, gamer: 0 })).toEqual(worker)
 
   expect(reformOf('worker', [0.45, 0.45, 0.05, 0.05])).toBe('worker')
@@ -807,10 +807,17 @@ test('the yard fills with props by share, one at a time', () => {
   expect(colors([]).has(0xff8a3d)).toBe(false)
 })
 
-test('an adult whose leaning has moved on takes the new side, and says so', { options: { luck: false } }, async ($, on) => {
-  // A worker adult whose recent turns have all been talk.
+test('the leaning moves once a day, and an adult whose leaning has moved on takes the new side', { options: { luck: false } }, async ($, on) => {
+  // A worker adult whose leaning has drifted to talk; yesterday was all talk too.
+  const clock = mock.clock(on, { now: Date.UTC(2026, 9, 2, 12, 0) })
   const kept = new Map<string, unknown>([
-    ['profile', { species: 'cat', pets: { cat: { name: '초코', tools: 40_000, form: 'worker', leaning: [0.205, 0.6, 0.1, 0.095] } } }],
+    [
+      'profile',
+      {
+        species: 'cat',
+        pets: { cat: { name: '초코', tools: 40_000, form: 'worker', leaning: [0.22, 0.58, 0.1, 0.1], day: '2026-10-01', brought: [0, 60, 0, 0] } },
+      },
+    ],
   ])
   on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
   on('store.set', async (_, e) => {
@@ -828,8 +835,20 @@ test('an adult whose leaning has moved on takes the new side, and says so', { op
   on('command.register', async () => ({ value: { command: 'pet' } }))
   on('session.start', async (_, e) => ({ cwd: e.cwd }))
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await clock.advance(600)
 
-  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer', usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 8000, model: 'm' } })
+  // The first turn of a new day moves the leaning toward yesterday's talk; the worker fades.
+  const turn = { answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as const
+  await $.turn.complete(turn)
   expect(toasts).toEqual(['초코 took after you: a scholar cat now.'])
-  expect((kept.get('profile') as { pets: { cat: { form: string } } }).pets.cat.form).toBe('scholar')
+  const cat = () => (kept.get('profile') as { pets: { cat: { form: string; day: string; brought: number[]; leaning: number[] } } }).pets.cat
+  expect(cat().form).toBe('scholar')
+  expect(cat().day).toBe('2026-10-02')
+  expect(cat().brought).toEqual([0, 5, 0, 0])
+
+  // Later turns the same day only add to its tally: the leaning stays put.
+  const leaning = cat().leaning
+  await $.turn.complete(turn)
+  expect(cat().leaning).toEqual(leaning)
+  expect(cat().brought).toEqual([0, 10, 0, 0])
 })
