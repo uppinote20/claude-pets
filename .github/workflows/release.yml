@@ -1,0 +1,52 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # Installs read the version from the manifests, so a tag that disagrees with them
+      # would publish notes for a version nobody can install.
+      - name: Check the manifests carry the tag's version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          want="${TAG#v}"
+          for file in .claude-plugin/plugin.json .claude-plugin/marketplace.json; do
+            have=$(jq -r '.version' "$file")
+            if [ "$have" != "$want" ]; then
+              echo "::error file=$file::version is $have, tag is $TAG"
+              exit 1
+            fi
+          done
+
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Find existing draft release created by release-drafter
+          draft_tag=$(gh release list --json tagName,isDraft -q '.[] | select(.isDraft) | .tagName' | head -1)
+
+          if [ -n "$draft_tag" ]; then
+            # Update draft: set correct tag, title, and publish
+            gh release edit "$draft_tag" --tag "$TAG" --title "$TAG" --draft=false
+            echo "Published draft release as $TAG"
+          else
+            # No draft exists — create and publish a minimal release
+            gh release create "$TAG" --title "$TAG" --generate-notes
+            echo "Created new release $TAG (no draft found)"
+          fi
