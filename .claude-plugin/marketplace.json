@@ -1,0 +1,27 @@
+{
+  "name": "claude-pets",
+  "owner": {
+    "name": "uppinote",
+    "email": ""
+  },
+  "metadata": {
+    "description": "Pixel pets that live in a Claude Code pane and grow as you work",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "pets",
+      "source": "./",
+      "description": "A pixel pet that wanders in a pane, reacts to tool calls and finished turns, takes a pat and a name, and levels up across sessions.",
+      "category": "fun",
+      "tags": [
+        "pet",
+        "pixel-art",
+        "pane",
+        "mod",
+        "fun"
+      ]
+    }
+  ],
+  "version": "0.1.0"
+}
