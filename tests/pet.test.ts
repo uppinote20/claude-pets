@@ -8,6 +8,8 @@
  */
 import { expect, mock, test } from 'claude-code/testing'
 
+import { SPECIES } from '../hooks/species'
+
 const PROPS = {
   title: 'Pet',
   isFocused: true,
@@ -79,7 +81,7 @@ test('the pet paces, takes a pat, a name and a species, and leaves when told', a
   expect(await pane.find({ type: 'Text', text: ' 나비 ' })).toBeDefined()
 
   const asCat = await cells()
-  expect(await run('choose dragon')).toBe('Choose one of: cat, chick')
+  expect(await run('choose dragon')).toBe('Choose one of: cat, chick, dog, slime')
   expect(await run('choose chick')).toBe('The chick is out.')
   expect(await cells()).not.toBe(asCat)
   expect(await pane.find({ type: 'Text', text: /^ Lv 1 / })).toBeDefined()
@@ -181,4 +183,19 @@ test('the size is kept across sessions', async ($, on) => {
   })
   expect(kept.get('profile')).toMatchObject({ species: 'chick', size: 'medium', pets: { chick: { name: '삐약' } } })
   await pane.unmount()
+})
+
+test('every sprite row is as wide as its sprite, and every mark has a color', async () => {
+  for (const [id, kind] of Object.entries(SPECIES)) {
+    for (const [size, side] of [['big', 12], ['mini', 8]] as const) {
+      const sprite = kind[size]
+      const rows = [sprite.rows, sprite.eyesShut, sprite.tear, sprite.feetApart].flatMap(Object.values)
+
+      expect(sprite.rows.length).toBe(side)
+      for (const row of rows) {
+        expect({ id, size, row, width: row.length }).toEqual({ id, size, row, width: side })
+        expect([...row].filter(mark => mark !== '.' && !(mark in kind.ink))).toEqual([])
+      }
+    }
+  }
 })
