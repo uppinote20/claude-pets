@@ -74,7 +74,7 @@ A pet reaches level `n + 1` at `25 × n²` experience: level 2 at 25, level 5 at
 | Stage | From | Looks |
 |-------|------|-------|
 | Baby | Lv 1 | As drawn |
-| Teen | Lv 15 | A taller body of its own, and its accessory: the cat and the bunny a ribbon, the chick a flower, the dog a scarf, the slime and the frog a crown, the hamster a leaf, the penguin a bow tie |
+| Teen | Lv 15 | A taller body of its own, and its accessory: the cat and the bunny a ribbon, the chick a flower, the dog a scarf, the slime and the frog a crown, the hamster a leaf, the penguin a knit hat |
 | Adult | Lv 40 | Evolves by its nature at that moment (worker, scholar, gamer, sweetie or curious), and twinkles |
 
 One evolution in twenty (with `luck` on) takes the **rare form** instead: the celestial cat, the phoenix chick, the moon wolf, the king slime, the moon bunny, the golden hamster, the emperor penguin, the prince frog.

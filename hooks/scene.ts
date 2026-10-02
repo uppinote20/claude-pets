@@ -112,20 +112,23 @@ export function gearOf(nature: Nature, head: Head, isBig: boolean, isWorking: bo
       return [{ rows, x: head.left - (isBig ? 4 : 3), y: head.eye + swing + (isBig ? 1 : 0), ink: GEAR_INK }]
     }
     case 'scholar': {
-      const rows = isBig ? ['...h...', 'hhhhhhh', '.kkkkky', '......y'] : ['.hhh.', 'hhhhh', '.kkky']
+      // The mini gets the board alone, two rows above its eyes.
+      const rows = isBig ? ['...h...', 'hhhhhhh', '.kkkkky', '......y'] : ['.hhh.', 'hhhhh']
       const width = rows[1]?.length ?? 0
 
-      return [{ rows, x: middle - Math.floor(width / 2), y: head.top - (isBig ? 2 : 1), ink: GEAR_INK }]
+      return [{ rows, x: middle - Math.floor(width / 2), y: head.top - 2, ink: GEAR_INK }]
     }
     case 'gamer': {
+      // Cups outside the head, so they never cover an eye: two wide on the big sprite, one on the mini.
       const across = head.right - head.left + 1
-      const band = '.'.repeat(2) + 'k'.repeat(Math.max(0, across - 4)) + '.'.repeat(2)
-      const side = '.k' + '.'.repeat(Math.max(0, across - 4)) + 'k.'
-      const cup = 'rr' + '.'.repeat(Math.max(0, across - 4)) + 'rr'
-      const reach = Math.max(1, head.eye - head.top)
-      const rows = [band, ...Array.from({ length: reach - 1 }, () => side), cup, ...(isBig ? [cup] : [])]
+      const cup = isBig ? 2 : 1
+      const band = '.'.repeat(cup) + 'k'.repeat(across) + '.'.repeat(cup)
+      const side = '.'.repeat(cup - 1) + 'k' + '.'.repeat(across) + 'k' + '.'.repeat(cup - 1)
+      const cups = 'r'.repeat(cup) + '.'.repeat(across) + 'r'.repeat(cup)
+      const reach = Math.max(0, head.eye - head.top)
+      const rows = [band, ...Array.from({ length: reach }, () => side), cups, ...(isBig ? [cups] : [])]
 
-      return [{ rows, x: head.left, y: head.top - 1, ink: GEAR_INK }]
+      return [{ rows, x: head.left - cup, y: head.top - 1, ink: GEAR_INK }]
     }
     case 'sweetie':
       return [{ rows: isBig ? ['p.p', '.c.', 'p.p'] : ['pc'], x: head.right - (isBig ? 3 : 2), y: head.top - 1, ink: GEAR_INK }]
@@ -311,14 +314,15 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
   }
   stamp(spriteRows(one, sprite, isSad), ink, left, top)
   // A cap, a headset or a pin takes the place of a head accessory; a rare adult wears its mark.
-  const gear = gearOf(nature, sprite.head ?? kind.head[look.sprite], isBig, one.mood === 'work', one.frame)
+  const gear = sprite.hasOwnGear === true ? [] : gearOf(nature, sprite.head ?? kind.head[look.sprite], isBig, one.mood === 'work', one.frame)
   const isHeadCovered = nature === 'scholar' || nature === 'gamer' || nature === 'sweetie'
   if (isRare) {
     const { rows, x } = worn(kind.rare.overlay, spriteWidth, one.dir)
 
     stamp(rows, kind.rare.overlay.ink, left + x, top + kind.rare.overlay.y)
   } else if (stage !== 'baby' && !(isHeadCovered && kind.accessory.slot === 'head')) {
-    const accessory = (isBig ? sprite.accessory : undefined) ?? kind.accessory[look.sprite]
+    // An adult drawn on its own sits its accessory where the teen does.
+    const accessory = (isBig ? sprite.accessory ?? kind.teen.accessory : undefined) ?? kind.accessory[look.sprite]
     const { rows, x } = worn(accessory, spriteWidth, one.dir)
 
     stamp(rows, accessory.ink, left + x, top + accessory.y)
