@@ -2,6 +2,8 @@
 
 A pixel pet that lives in a Claude Code pane. It wanders while you work, reacts to what your session does, and grows across sessions.
 
+<p align="center"><img src="assets/demo.gif" width="480" alt="The cat, chick, dog and slime walking, working, cheering, being patted and napping"></p>
+
 | <img src="assets/cat.svg" width="144" alt="cat"> | <img src="assets/chick.svg" width="144" alt="chick"> | <img src="assets/dog.svg" width="144" alt="dog"> | <img src="assets/slime.svg" width="144" alt="slime"> |
 |:---:|:---:|:---:|:---:|
 | `cat` | `chick` | `dog` | `slime` |
@@ -100,10 +102,11 @@ claude plugin validate .claude-plugin/plugin.json   # manifest and hooks module
 claude plugin test .                                # tests/*.test.ts
 ```
 
-The species images in `assets/` are generated from the sprite data. Regenerate them after adding or changing a species (Node 22.18+):
+The species images and the demo GIF in `assets/` are generated from the sprite data with the plugin's own drawing code. Regenerate them after adding or changing a species, or the drawing (Node 22.18+, no dependencies):
 
 ```bash
 node scripts/sprites.mjs
+node scripts/demo.mjs
 ```
 
 Once Claude Code has loaded the plugin from this folder it lays its type declarations in `.claude-plugin/types/`, and `tsc -p .` type-checks the plugin.
