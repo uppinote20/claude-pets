@@ -12,6 +12,7 @@
  * @handbook 3.4-pet-run
  * @handbook 3.5-pet-quest
  * @handbook 3.6-luck
+ * @handbook 3.7-nature-rhythm
  * @handbook 4.2-pixel-pipeline
  * @handbook 4.3-surface-branch
  * @tested tests/pet.test.ts

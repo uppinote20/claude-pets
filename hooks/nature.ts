@@ -1,6 +1,9 @@
 /**
  * What kind of pet it is becoming: its nature, read off what it has lived through, and its
  * rhythm, read off the hours its sessions keep. Pure: counts in, words out.
+ *
+ * @handbook 3.7-nature-rhythm
+ * @tested tests/pet.test.ts
  */
 import type { PetStats } from '../types'
 
