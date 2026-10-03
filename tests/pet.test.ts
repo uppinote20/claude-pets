@@ -939,7 +939,25 @@ test('kitty draws the yard as an image with the hi-res pet; other terminals keep
   const image = await pane.find({ type: 'Image', key: 'pet' })
   expect(image?.props.columns).toBe(38)
   expect(image?.props.rows).toBe(8)
-  expect(image?.props.source).toMatchObject({ width: 38 * 12, height: 16 * 12 })
+  expect(image?.props.source).toMatchObject({ width: 38 * 8, height: 16 * 8 })
+  // The picture is all there and drawn: four bytes a pixel, and the pet and grass opaque in it.
+  const { rgba, width, height } = image?.props.source as { rgba: string; width: number; height: number }
+  const bytes = Uint8Array.from(atob(rgba), mark => mark.charCodeAt(0))
+  expect(bytes.length).toBe(width * height * 4)
+  expect(bytes.filter((_, at) => at % 4 === 3 && bytes[at] === 0xff).length).toBeGreaterThan(width * height * 0.1)
+  expect(await pane.find({ type: 'Raster' })).toBeUndefined()
+  await pane.unmount()
+})
+
+test('Ghostty is an image terminal too, by its program name', async ($, on) => {
+  mock.env(on, { TERM: 'xterm-256color', TERM_PROGRAM: 'ghostty' })
+  mock.store(on)
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await pane.find({ type: 'Image', key: 'pet' })).toBeDefined()
   expect(await pane.find({ type: 'Raster' })).toBeUndefined()
   await pane.unmount()
 })

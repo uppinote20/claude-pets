@@ -289,8 +289,8 @@ const CHICK_TEEN: Art = {
     l: 0xfff6c9, // light patch
     y: 0xffa54a, // beak and feet
     Y: 0xe0782a, // beak in shade
-    g: 0xffd447,
-    f: 0xfffaf0,
+    g: 0xffd447, // flower center
+    f: 0xfffaf0, // flower petals
   },
 }
 
@@ -845,8 +845,8 @@ const HAMSTER_TEEN: Art = {
     h: 0xffd8a8, // in light
     c: 0xfff3dc, // muzzle and belly
     C: 0xf2dcc0, // belly in shade
-    v: 0x7cc576,
-    V: 0x4f9a52,
+    v: 0x7cc576, // leaf
+    V: 0x4f9a52, // leaf in shade
   },
 }
 
@@ -984,9 +984,9 @@ const PENGUIN_TEEN: Art = {
     C: 0xe4e2ee, // belly in shade
     y: 0xffb35f, // beak and feet
     Y: 0xe0832a, // beak in shade
-    r: 0xff6b8a,
-    R: 0xd94f6e,
-    f: 0xfffaf0,
+    r: 0xff6b8a, // beanie
+    R: 0xd94f6e, // beanie rib
+    f: 0xfffaf0, // pompom
   },
 }
 
@@ -1122,8 +1122,8 @@ const FROG_TEEN: Art = {
     h: 0xc2ecb6, // in light
     c: 0xf4fae0, // muzzle and belly
     C: 0xdcebc0, // belly in shade
-    r: 0xff6b8a,
-    g: 0xffd447,
+    r: 0xff6b8a, // crown gems
+    g: 0xffd447, // crown
   },
 }
 

@@ -662,7 +662,7 @@ export function toSvg(scene: Scene, size: Size, caption: Caption): string {
   // The pet in hi-res art, in the box its 12×12 sprite would take.
   if (scene.pet !== undefined) {
     const { rows, ink, left, top, box } = scene.pet
-    const fine = (box * unit) / (rows[0]?.length ?? 1)
+    const fine = (box * unit) / (rows[0]?.length || 1)
     const art: string[] = []
 
     rows.forEach((row, y) => {
@@ -751,9 +751,11 @@ export function pixelsSvg(pixels: Pixels, unit: number): string {
 /**
  * The scene as one RGBA picture, for a terminal that shows images (kitty, Ghostty): every
  * pixel of the yard `scale` across and down (a cell is one pixel across and two down, so the
- * picture fills the same cells as the half blocks would), the hi-res pet over it.
+ * picture fills the same cells as the half blocks would), the hi-res pet over it. At the default
+ * 8, a 32-wide art over the 12-pixel sprite box is exactly 3 pixels a dot, so no dot is wider
+ * than its neighbours.
  */
-export function toRgba(scene: Scene, scale = 12): { rgba: string; width: number; height: number } {
+export function toRgba(scene: Scene, scale = 8): { rgba: string; width: number; height: number } {
   const across = scene.pixels[0]?.length ?? 0
   const width = across * scale
   const height = scene.pixels.length * scale
@@ -775,7 +777,7 @@ export function toRgba(scene: Scene, scale = 12): { rgba: string; width: number;
   scene.pixels.forEach((row, y) => row.forEach((color, x) => color !== null && color !== undefined && fill(x * scale, y * scale, scale, color)))
   if (scene.pet !== undefined) {
     const { rows, ink, left, top, box } = scene.pet
-    const fine = (box * scale) / (rows[0]?.length ?? 1)
+    const fine = (box * scale) / (rows[0]?.length || 1)
 
     rows.forEach((row, y) => {
       ;[...row].forEach((mark, x) => {
