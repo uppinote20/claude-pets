@@ -2,7 +2,11 @@
  * The yard as pixels, and the two ways it is drawn: half-block cells on the terminal,
  * an SVG card on the surfaces that draw `Svg` (desktop, VS Code, mobile).
  *
- * Pure: no `$`, so the tests and `scripts/preview.mjs` draw exactly what the pane does.
+ * Pure: no `$`, so a test's render is exactly what the pane draws.
+ *
+ * @handbook 4.2-pixel-pipeline
+ * @handbook 4.3-surface-branch
+ * @tested tests/pet.test.ts
  */
 import type { Pet } from '../types'
 import type { Species, Sprite } from './species'
