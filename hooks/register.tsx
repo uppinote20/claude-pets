@@ -10,6 +10,7 @@
  * @handbook 3.2-mood-state-machine
  * @handbook 3.3-pet-command
  * @handbook 3.4-pet-run
+ * @handbook 3.5-pet-quest
  * @handbook 4.2-pixel-pipeline
  * @handbook 4.3-surface-branch
  * @tested tests/pet.test.ts

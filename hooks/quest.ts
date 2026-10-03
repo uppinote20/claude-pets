@@ -3,8 +3,11 @@
  * press while rising jumps higher. Stomp the bugs, snap up the snacks, knock the gift boxes
  * from below, hop the stumps, and reach the snack bowl.
  *
- * Stages are tile maps, one character per 4×4 tile, as the sprites are pixels: the three
- * below take about 5 KB. Pure, like run.ts: `advance` and `paintQuest` are all there is.
+ * Stages are tile maps, one character per 4×4 tile, as the sprites are pixels: the eight
+ * below are plain data. Pure, like run.ts: `advanceQuest` and `paintQuest` are all there is.
+ *
+ * @handbook 3.5-pet-quest
+ * @tested tests/pet.test.ts
  */
 import type { Pet } from '../types'
 import { PALETTE, spriteRows, worn } from './scene'
