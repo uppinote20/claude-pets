@@ -2,6 +2,7 @@
  * Drives the plugin through its hooks: mocked clock and store, mounted Pane.
  * @handbook 5.1-plugin-test-harness
  * @handbook 5.2-ci-release-gates
+ * @covers hooks/luck.ts
  * @covers hooks/quest.ts
  * @covers hooks/register.tsx
  * @covers hooks/run.ts
@@ -150,7 +151,7 @@ test('a wide pane shows the stats beside the yard, the dock under it, a narrow o
   }
 })
 
-test('/pet says why when no surface places the pane', async ($, on) => {
+test('/pet says why when no surface places the pane', { options: { luck: false } }, async ($, on) => {
   const reason = 'no attached surface places panes'
   on('ui.open', async () => ({ value: { isPlaced: false as const, reason } }))
   on('command.register', async () => ({ value: { command: 'pet' } }))
@@ -585,6 +586,38 @@ test('with luck, finished turns turn up gifts that add experience', async ($, on
   expect(cat.gifts).toBeGreaterThan(0)
   expect(cat.bonus > 0 || cat.shiny).toBe(true)
   expect(toasts.some(text => /^초코 found /.test(text))).toBe(true)
+})
+
+test('the very first cat is met when the session starts, so its roll at being shiny happens then', { options: { luck: false } }, async ($, on) => {
+  const kept = new Map<string, unknown>()
+  on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', async (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  // Kept at once (luck off here, so not shiny): a pat or a turn later no longer counts as meeting it.
+  expect(kept.get('profile')).toMatchObject({ species: 'cat', pets: { cat: { shiny: false } } })
+})
+
+test('a cat already kept is not rolled again when a session starts', async ($, on) => {
+  const kept = new Map<string, unknown>([['profile', { species: 'cat', pets: { cat: { name: '초코' } } }]])
+  on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', async (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  // Luck is on, and still nothing is written: only a pet never met is rolled.
+  expect(kept.get('profile')).toEqual({ species: 'cat', pets: { cat: { name: '초코' } } })
 })
 
 test('a shiny pet is drawn in its shiny colors and says so', async ($, on) => {

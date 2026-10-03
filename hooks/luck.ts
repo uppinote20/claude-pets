@@ -1,6 +1,9 @@
 /**
  * What luck brings: a gift now and then after a finished turn, a lucky pat, and the rare shiny
  * pet. Pure: the hooks module rolls `Math.random()` and hands the numbers in, so tests can too.
+ *
+ * @handbook 3.6-luck
+ * @tested tests/pet.test.ts
  */
 
 /** A finished turn of the main conversation finds a gift this often. */
@@ -9,6 +12,8 @@ export const GIFT_CHANCE = 0.1
 export const LUCKY_PAT_CHANCE = 0.1
 /** A pet met for the first time is shiny this often. */
 export const SHINY_CHANCE = 1 / 32
+/** The biggest gift, and what a second sparkle stone is worth instead. */
+const JACKPOT_XP = 100
 
 export type Gift = { kind: 'xp'; name: string; xp: number } | { kind: 'stone' }
 
@@ -27,7 +32,7 @@ export function giftOf(r: number): Gift {
     return { kind: 'xp', name: 'a treasure', xp: 40 }
   }
   if (r < 0.99) {
-    return { kind: 'xp', name: 'the jackpot', xp: 100 }
+    return { kind: 'xp', name: 'the jackpot', xp: JACKPOT_XP }
   }
 
   return { kind: 'stone' }
@@ -39,5 +44,5 @@ export function worthOf(gift: Gift, isShiny: boolean): { xp: number; makesShiny:
     return { xp: gift.xp, makesShiny: false }
   }
 
-  return isShiny ? { xp: 100, makesShiny: false } : { xp: 0, makesShiny: true }
+  return isShiny ? { xp: JACKPOT_XP, makesShiny: false } : { xp: 0, makesShiny: true }
 }

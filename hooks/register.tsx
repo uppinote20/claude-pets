@@ -11,6 +11,7 @@
  * @handbook 3.3-pet-command
  * @handbook 3.4-pet-run
  * @handbook 3.5-pet-quest
+ * @handbook 3.6-luck
  * @handbook 4.2-pixel-pipeline
  * @handbook 4.3-surface-branch
  * @tested tests/pet.test.ts
@@ -486,7 +487,10 @@ export const register: Register = (on, options) => {
     })
     const kept = toProfile(await $.store.get(PROFILE_KEY))
     await update($, profile, () => kept)
-    shownLevel = levelOf(statsOf(kept))
+    // The pet out is met here when nothing was kept of it yet (the very first cat), so it gets the
+    // same one roll at being shiny that `/pet choose` gives a pet met for the first time.
+    const met = kept.species in kept.pets ? kept : await grow($, stats => (lucky(SHINY_CHANCE) ? { ...stats, shiny: true } : stats))
+    shownLevel = levelOf(statsOf(met))
     $.clock.every(TICK_MS, () => void update($, pet, step))
 
     return next(e)
