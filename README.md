@@ -2,9 +2,9 @@
 
 A pixel pet that lives in a Claude Code pane. It wanders while you work, reacts to what your session does, and grows across sessions.
 
-| <img src="assets/cat.svg" width="144" alt="cat"> | <img src="assets/chick.svg" width="144" alt="chick"> |
-|:---:|:---:|
-| `cat` | `chick` |
+| <img src="assets/cat.svg" width="144" alt="cat"> | <img src="assets/chick.svg" width="144" alt="chick"> | <img src="assets/dog.svg" width="144" alt="dog"> | <img src="assets/slime.svg" width="144" alt="slime"> |
+|:---:|:---:|:---:|:---:|
+| `cat` | `chick` | `dog` | `slime` |
 
 > **Early access.** This is a Claude Code *mod* (a plugin of function hooks). That API is early access and can change between Claude Code releases, so a new release may break the pet until this plugin catches up.
 
@@ -39,7 +39,7 @@ claude --plugin-dir /path/to/claude-pets
 | `/pet` | Let the pet out |
 | `/pet pat` | Pat it |
 | `/pet name <name>` | Name it (up to 20 characters) |
-| `/pet choose <species>` | Bring out another pet: `cat`, `chick` |
+| `/pet choose <species>` | Bring out another pet: `cat`, `chick`, `dog`, `slime` |
 | `/pet size <size>` | How tall the pane is: `small` (6 rows) or `medium` (9, the default) |
 | `/pet status` | Level, experience and counts |
 | `/pet bye` | Close the pane |
