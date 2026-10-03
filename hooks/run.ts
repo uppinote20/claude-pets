@@ -3,6 +3,9 @@
  *
  * Pure, like scene.ts: `advance` moves one tick on, `paintRun` draws it as pixels. The hooks
  * module owns the clock, the keys and the pane; tests drive the same functions.
+ *
+ * @handbook 3.4-pet-run
+ * @tested tests/pet.test.ts
  */
 import type { Pet } from '../types'
 import { PALETTE, spriteRows, worn } from './scene'

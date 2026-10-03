@@ -3,6 +3,7 @@
  * @handbook 5.1-plugin-test-harness
  * @handbook 5.2-ci-release-gates
  * @covers hooks/register.tsx
+ * @covers hooks/run.ts
  * @covers hooks/scene.ts
  * @covers hooks/species.ts
  */

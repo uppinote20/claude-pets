@@ -9,6 +9,7 @@
  * @handbook 3.1-xp-level-curve
  * @handbook 3.2-mood-state-machine
  * @handbook 3.3-pet-command
+ * @handbook 3.4-pet-run
  * @handbook 4.2-pixel-pipeline
  * @handbook 4.3-surface-branch
  * @tested tests/pet.test.ts
