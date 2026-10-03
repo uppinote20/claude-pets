@@ -15,13 +15,16 @@
  * @handbook 3.7-nature-rhythm
  * @handbook 4.2-pixel-pipeline
  * @handbook 4.3-surface-branch
+ * @handbook 4.5-hi-res-art
  * @tested tests/pet.test.ts
  */
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Pet, PetProfile, PetSize, PetStats, QuestView, RunView } from '../types'
-import { DEFAULT_SIZE, SIZES, STAGE_LEVELS, cardWidthFor, lookOf, pixelsSvg, stageOf, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
+import { artOf } from './art'
+import type { Art } from './art'
+import { DEFAULT_SIZE, SIZES, STAGE_LEVELS, cardWidthFor, lookOf, pixelsSvg, stageOf, toRgba, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
 import { QUEST_HEIGHT, QUEST_TICK_MS, STAGES, advanceQuest, jumpQuest, newQuest, paintQuest, questScore } from './quest'
 import type { Quest } from './quest'
 import type { Form } from './scene'
@@ -85,6 +88,21 @@ let isRemote = false
 // The level last seen for the pet that is out, so a level-up is announced once, whether it came
 // from a turn, a pat or a run.
 let shownLevel = 1
+// Whether the terminal draws images (kitty, Ghostty), read once a session from its variables.
+let isImageTerminal = false
+// The `art` setting: 'pixel' keeps half blocks everywhere.
+let wantsArt = true
+
+/**
+ * The hi-res art to draw the pet in, where there is some for its species and stage: not for a
+ * shiny or a rare adult, whose colors the art does not have yet.
+ */
+function artFor(who: PetProfile): Art | undefined {
+  const stats = statsOf(who)
+  const stage = stageOf(levelOf(stats))
+
+  return wantsArt && !stats.shiny && !(stage === 'adult' && formOf(stats) === 'rare') ? artOf(who.species, stage) : undefined
+}
 // The `luck` setting, as register last read it: the rare form is luck too.
 let isLuckOn = true
 const FORMS: readonly string[] = ['worker', 'scholar', 'sweetie', 'gamer', 'curious', 'rare'] satisfies readonly Form[]
@@ -611,6 +629,7 @@ export const register: Register = (on, options) => {
   // Off, nothing is left to chance: no gifts, no lucky pats, no shiny pets, no rare forms.
   const hasLuck = options.luck !== false
   isLuckOn = hasLuck
+  wantsArt = options.art !== 'pixel'
   const lucky = (chance: number) => hasLuck && Math.random() < chance
 
   // Tool calls since the last save: the store is written once a turn, not on every call.
@@ -635,6 +654,14 @@ export const register: Register = (on, options) => {
       }
     } catch {
       // No `date` (Windows): the hours are UTC's.
+    }
+    try {
+      const term = (await $.env.get('TERM')) ?? ''
+      const program = (await $.env.get('TERM_PROGRAM')) ?? ''
+      isImageTerminal = term.includes('kitty') || program.toLowerCase() === 'ghostty' || term.includes('ghostty')
+    } catch {
+      // Unknown: half blocks, which every terminal draws.
+      isImageTerminal = false
     }
     $.clock.every(TICK_MS, () => void tickPet($))
 
@@ -833,14 +860,16 @@ export const register: Register = (on, options) => {
     const fewest = minWidth(kind, who.size)
 
     if (e.surface === 'terminal') {
-      const { Box, Text, Raster } = $.ui.resolve(e)
+      const { Box, Text, Raster, Image } = $.ui.resolve(e)
+      // In kitty and Ghostty the pet can be its hi-res art, the yard an image of the same cells.
+      const art = isImageTerminal ? artFor(who) : undefined
       // Stats go beside the yard above a wide prompt, under it in the tall, narrow dock,
       // and nowhere when neither has room: then the level line carries them.
       const isDocked = e.props.placement === 'dock'
       const isBeside = !isDocked && e.props.bodyColumns >= fewest + PANEL + 4
       const room = isBeside ? e.props.bodyColumns - PANEL - 4 : e.props.bodyColumns - 2
       const columns = Math.max(fewest, Math.min(MAX_YARD, room))
-      const scene = paint(one, kind, who.size, columns, STEPS, { isSad, stage: stageOf(levelOf(stats)), form: formOf(stats), nature: natureOf(stats), daypart: daypartNow(), leaning: yardLeaning(stats) })
+      const scene = paint(one, kind, who.size, columns, STEPS, { isSad, stage: stageOf(levelOf(stats)), form: formOf(stats), nature: natureOf(stats), daypart: daypartNow(), leaning: yardLeaning(stats), ...(art === undefined ? {} : { art }) })
       const cells = toCells(scene.pixels)
       const width = cells[0]?.length ?? 0
       const level = levelOf(stats)
@@ -849,7 +878,12 @@ export const register: Register = (on, options) => {
       const progress = progressOf(stats)
       const [filled, empty] = barOf(progress)
       const [wide, rest] = barOf(progress, PANEL_BAR)
-      const yard = <Raster key="pet" columns={width} rows={cells.length} cells={pack(cells)} />
+      const yard =
+        scene.pet === undefined ? (
+          <Raster key="pet" columns={width} rows={cells.length} cells={pack(cells)} />
+        ) : (
+          <Image key="pet" source={toRgba(scene)} columns={width} rows={cells.length} alt={`${titleOf(who)}, Lv ${levelOf(stats)}`} />
+        )
       const panel = (
         <Box flexDirection="column" width={PANEL} paddingLeft={isBeside ? 2 : 0}>
           <Text color={PASTEL.gray} dimColor>{`${kind.label.toUpperCase()}${stats.shiny ? ' ✦' : ''}${stage === 'baby' ? '' : stage === 'teen' ? ' · TEEN' : ` · ${formName(kind, formOf(stats)).toUpperCase()}`}`}</Text>
@@ -910,7 +944,8 @@ export const register: Register = (on, options) => {
     const { Svg } = $.ui.resolve(e)
     const tally = tallyLine(stats)
     const across = Math.max(fewest, cardWidthFor(who.size, tally), Math.min(MAX_CARD, Math.floor((e.props.bodyColumns * CELL_PX) / unit) - 4))
-    const scene = paint(one, kind, who.size, across, STEPS, { isSad, withGrass: false, stage: stageOf(levelOf(stats)), form: formOf(stats), nature: natureOf(stats), daypart: daypartNow(), leaning: yardLeaning(stats) })
+    const art = artFor(who)
+    const scene = paint(one, kind, who.size, across, STEPS, { isSad, withGrass: false, stage: stageOf(levelOf(stats)), form: formOf(stats), nature: natureOf(stats), daypart: daypartNow(), leaning: yardLeaning(stats), ...(art === undefined ? {} : { art }) })
     const caption = { name: stats.name, level: levelOf(stats), progress: progressOf(stats), says, tally, daypart: daypartNow() }
     const alt = `${titleOf(who)}, Lv ${levelOf(stats)}${says === '' ? '' : `: ${says}`}`
 

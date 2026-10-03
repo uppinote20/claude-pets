@@ -2,6 +2,7 @@
  * Drives the plugin through its hooks: mocked clock and store, mounted Pane.
  * @handbook 5.1-plugin-test-harness
  * @handbook 5.2-ci-release-gates
+ * @covers hooks/art.ts
  * @covers hooks/luck.ts
  * @covers hooks/nature.ts
  * @covers hooks/quest.ts
@@ -12,6 +13,7 @@
  */
 import { expect, mock, test } from 'claude-code/testing'
 
+import { ART_SIDE, artOf } from '../hooks/art'
 import { giftOf, worthOf } from '../hooks/luck'
 import { daypartOf, driftLeaning, natureOf, reformOf, rhythmOf } from '../hooks/nature'
 import { QUEST_ROWS, STAGES, advanceQuest, jumpQuest, newQuest } from '../hooks/quest'
@@ -133,7 +135,9 @@ test('surfaces without Raster draw the pet as an SVG card', async $ => {
     expect(await pane.find({ type: 'Raster' })).toBeUndefined()
     expect(card?.props.alt).toBe('The cat, Lv 1')
     expect(card?.props.source).toMatch(/^<svg [^>]*width="\d+"/)
-    expect(card?.props.source).toContain('#ffd787')
+    // The baby cat has hi-res art: its fur, outline and glints come from it.
+    expect(card?.props.source).toContain('#ffcf7d')
+    expect(card?.props.source).toContain('#6b4636')
     await pane.unmount()
   }
 })
@@ -212,6 +216,29 @@ test('every sprite row is as wide as its sprite, and every mark has a color', as
         expect({ id, size, row, width: row.length }).toEqual({ id, size, row, width: side })
         expect([...row].filter(mark => mark !== '.' && !(mark in ink))).toEqual([])
       }
+    }
+  }
+})
+
+test('every species has hi-res baby and teen art, square, fully inked, its frames on rows of their own', () => {
+  for (const id of Object.keys(SPECIES)) {
+    for (const stage of ['baby', 'teen', 'adult'] as const) {
+      const art = artOf(id, stage)
+      if (art === undefined) {
+        expect({ id, stage, hasArt: stage === 'adult' }).toEqual({ id, stage, hasArt: true })
+        continue
+      }
+      const frames = [art.eyesShut, art.tear, art.feetApart].map(frame => Object.keys(frame))
+      const rows = [art.rows, art.eyesShut, art.tear, art.feetApart].flatMap(Object.values)
+
+      expect(art.rows.length).toBe(ART_SIDE)
+      for (const row of rows) {
+        expect({ id, stage, width: row.length }).toEqual({ id, stage, width: ART_SIDE })
+        expect([...row].filter(mark => mark !== '.' && !(mark in art.ink))).toEqual([])
+      }
+      // A blink and a step can come on the same tick: neither may undo the other.
+      expect(new Set(frames.flat()).size).toBe(frames.flat().length)
+      expect(frames.every(frame => frame.length > 0)).toBe(true)
     }
   }
 })
@@ -891,4 +918,47 @@ test('the card grass takes the shade of the leaning, as the pane grass does', { 
   // The plain green of a pet that leans nowhere is gone from the mound.
   expect(source).not.toContain('fill="#b5dcae"')
   await card.unmount()
+})
+
+test('with art set to pixel the card keeps the 12×12 sprite', { options: { art: 'pixel' } }, async $ => {
+  const card = await $.ui.mount({ ...PANE, surface: 'mobile' })
+
+  expect((await card.find({ type: 'Svg' }))?.props.source).toContain('#ffd787')
+  expect((await card.find({ type: 'Svg' }))?.props.source).not.toContain('#6b4636')
+  await card.unmount()
+})
+
+test('kitty draws the yard as an image with the hi-res pet; other terminals keep half blocks', async ($, on) => {
+  mock.env(on, { TERM: 'xterm-kitty' })
+  mock.store(on)
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await pane.find({ type: 'Raster' })).toBeUndefined()
+  const image = await pane.find({ type: 'Image', key: 'pet' })
+  expect(image?.props.columns).toBe(38)
+  expect(image?.props.rows).toBe(8)
+  expect(image?.props.source).toMatchObject({ width: 38 * 8, height: 16 * 8 })
+  // The picture is all there and drawn: four bytes a pixel, and the pet and grass opaque in it.
+  const { rgba, width, height } = image?.props.source as { rgba: string; width: number; height: number }
+  const bytes = Uint8Array.from(atob(rgba), mark => mark.charCodeAt(0))
+  expect(bytes.length).toBe(width * height * 4)
+  expect(bytes.filter((_, at) => at % 4 === 3 && bytes[at] === 0xff).length).toBeGreaterThan(width * height * 0.1)
+  expect(await pane.find({ type: 'Raster' })).toBeUndefined()
+  await pane.unmount()
+})
+
+test('Ghostty is an image terminal too, by its program name', async ($, on) => {
+  mock.env(on, { TERM: 'xterm-256color', TERM_PROGRAM: 'ghostty' })
+  mock.store(on)
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await pane.find({ type: 'Image', key: 'pet' })).toBeDefined()
+  expect(await pane.find({ type: 'Raster' })).toBeUndefined()
+  await pane.unmount()
 })
