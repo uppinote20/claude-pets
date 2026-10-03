@@ -20,11 +20,13 @@ type Look = {
   ground: number
   /** CSS pixels per sprite pixel on the surfaces that draw `Svg`. */
   unit: number
+  /** The card's text size, in CSS pixels: what `cardWidthFor` measures and `toSvg` draws. */
+  font: number
 }
 
 const LOOKS: Readonly<Record<Size, Look>> = {
-  small: { sprite: 'mini', headroom: 1, ground: 1, unit: 6 },
-  medium: { sprite: 'big', headroom: 2, ground: 2, unit: 8 },
+  small: { sprite: 'mini', headroom: 1, ground: 1, unit: 6, font: 10 },
+  medium: { sprite: 'big', headroom: 2, ground: 2, unit: 8, font: 12 },
 }
 
 export const PALETTE = {
@@ -227,9 +229,9 @@ function textWidth(text: string, fontSize: number): number {
 
 /** The narrowest yard, in sprite pixels, whose card fits `line` under the grass. */
 export function cardWidthFor(size: Size, line: string): number {
-  const { unit } = LOOKS[size]
+  const { unit, font } = LOOKS[size]
 
-  return Math.ceil(textWidth(line, size === 'small' ? 10 : 12) / unit) + 2
+  return Math.ceil(textWidth(line, font) / unit) + 2
 }
 
 /**
@@ -237,8 +239,7 @@ export function cardWidthFor(size: Size, line: string): number {
  * a pink name tag with the level and its progress, and a speech bubble over the pet.
  */
 export function toSvg(scene: Scene, size: Size, caption: Caption): string {
-  const { unit } = LOOKS[size]
-  const font = size === 'small' ? 10 : 12
+  const { unit, font } = LOOKS[size]
   const pad = unit * 2
   const band = font * 2 + 8
   const cols = scene.pixels[0]?.length ?? 0

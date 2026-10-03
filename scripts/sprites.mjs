@@ -3,6 +3,7 @@
 // @handbook 4.4-readme-asset-generation
 import { mkdirSync, writeFileSync } from 'node:fs'
 
+import { hex } from '../hooks/scene.ts'
 import { SPECIES } from '../hooks/species.ts'
 
 const PIXEL = 16
@@ -20,7 +21,7 @@ for (const [id, species] of Object.entries(SPECIES)) {
       return color === undefined
         ? []
         : [
-            `<rect x="${(x + MARGIN) * PIXEL}" y="${(y + MARGIN) * PIXEL}" width="${PIXEL}" height="${PIXEL}" fill="#${color.toString(16).padStart(6, '0')}"/>`,
+            `<rect x="${(x + MARGIN) * PIXEL}" y="${(y + MARGIN) * PIXEL}" width="${PIXEL}" height="${PIXEL}" fill="${hex(color)}"/>`,
           ]
     }),
   )
