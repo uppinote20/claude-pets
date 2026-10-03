@@ -6,6 +6,7 @@
  *
  * @handbook 4.2-pixel-pipeline
  * @handbook 4.3-surface-branch
+ * @handbook 4.5-hi-res-art
  * @tested tests/pet.test.ts
  */
 import type { Pet } from '../types'

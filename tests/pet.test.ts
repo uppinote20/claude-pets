@@ -2,6 +2,7 @@
  * Drives the plugin through its hooks: mocked clock and store, mounted Pane.
  * @handbook 5.1-plugin-test-harness
  * @handbook 5.2-ci-release-gates
+ * @covers hooks/art.ts
  * @covers hooks/luck.ts
  * @covers hooks/nature.ts
  * @covers hooks/quest.ts

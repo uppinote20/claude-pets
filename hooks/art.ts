@@ -6,6 +6,9 @@
  *
  * Same shape as a Sprite: rows of marks, colors in `ink`, and the rows that replace the eyes,
  * the cheek and the feet, by index.
+ *
+ * @handbook 4.5-hi-res-art
+ * @tested tests/pet.test.ts
  */
 import type { Stage } from './scene'
 import type { Sprite } from './species'
