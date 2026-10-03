@@ -87,11 +87,15 @@ let isRemote = false
 let shownLevel = 1
 // The `luck` setting, as register last read it: the rare form is luck too.
 let isLuckOn = true
-const FORMS: readonly string[] = ['worker', 'scholar', 'sweetie', 'gamer', 'curious', 'rare']
+const FORMS: readonly string[] = ['worker', 'scholar', 'sweetie', 'gamer', 'curious', 'rare'] satisfies readonly Form[]
+
+function isForm(value: string): value is Form {
+  return FORMS.includes(value)
+}
 
 /** An adult's form: as kept, else what it would become now. */
 function formOf(stats: PetStats): Form {
-  return (FORMS.includes(stats.form) ? stats.form : natureOf(stats)) as Form
+  return isForm(stats.form) ? stats.form : natureOf(stats)
 }
 
 /** `scholar`, or for the rare form its own name (`celestial`). */
@@ -197,7 +201,7 @@ function toStats(fields: Record<string, unknown>): PetStats {
     bonus: count(fields.bonus),
     shiny: fields.shiny === true,
     hours: DAYPARTS.map((_, at) => count(Array.isArray(fields.hours) ? fields.hours[at] : 0)),
-    form: typeof fields.form === 'string' && FORMS.includes(fields.form) ? fields.form : '',
+    form: typeof fields.form === 'string' && isForm(fields.form) ? fields.form : '',
   }
 }
 
@@ -402,7 +406,7 @@ function viewOf(run: Run): RunView {
 
 /** Cells of the course for the terminal's Raster. */
 function runCells(run: Run, who: PetProfile): string {
-  return pack(toCells(paintRun(run, speciesOf(who), stageOf(levelOf(statsOf(who))))))
+  return pack(toCells(paintRun(run, speciesOf(who), stageOf(levelOf(statsOf(who))), formOf(statsOf(who)))))
 }
 
 /**
@@ -449,7 +453,7 @@ function questViewOf(stage: Quest): QuestView {
 }
 
 function questCells(stage: Quest, who: PetProfile): string {
-  return pack(toCells(paintQuest(stage, speciesOf(who), stageOf(levelOf(statsOf(who))))))
+  return pack(toCells(paintQuest(stage, speciesOf(who), stageOf(levelOf(statsOf(who))), formOf(statsOf(who)))))
 }
 
 /**
@@ -907,7 +911,7 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Text>{`${calledOf(who)} · score ${view.score} · best ${best} · snacks ${view.snacks}${hint === '' ? '' : ` · ${hint}`}`}</Text>
-        <Svg source={pixelsSvg(paintRun(run, speciesOf(who), stageOf(levelOf(statsOf(who)))), 6)} alt={`Pet Run, score ${view.score}`} />
+        <Svg source={pixelsSvg(paintRun(run, speciesOf(who), stageOf(levelOf(statsOf(who))), formOf(statsOf(who))), 6)} alt={`Pet Run, score ${view.score}`} />
         <Box gap={1}>
           <Button key="jump" hotkey="j" onPress={onJump}>Jump</Button>
           <Button key="restart" hotkey="r" onPress={onRestart}>Again</Button>
@@ -995,7 +999,7 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Text>{`${calledOf(who)} · ${line}${hint === '' ? '' : ` · ${hint}`}`}</Text>
-        <Svg source={pixelsSvg(paintQuest(stage, speciesOf(who), stageOf(levelOf(statsOf(who)))), 5)} alt={`Pet Quest stage ${view.stage + 1}`} />
+        <Svg source={pixelsSvg(paintQuest(stage, speciesOf(who), stageOf(levelOf(statsOf(who))), formOf(statsOf(who))), 5)} alt={`Pet Quest stage ${view.stage + 1}`} />
         <Box gap={1}>
           <Button key="jump" hotkey="j" onPress={onJump}>Jump</Button>
           <Button key="retry" hotkey="r" onPress={onRetry}>Retry</Button>

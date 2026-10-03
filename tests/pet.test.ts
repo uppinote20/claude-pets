@@ -685,6 +685,54 @@ test('a worker shows its nature in the stats, and the card turns night blue at n
   await card.unmount()
 })
 
+test('snacks from a game that reach Lv 40 evolve it and say so, as any other experience does', { options: { luck: false } }, async ($, on) => {
+  // 38,024 xp, all tool calls: one snack short of Lv 40 (38,025), and a worker.
+  const kept = new Map<string, unknown>([['profile', { species: 'cat', pets: { cat: { name: '초코', tools: 38_024 } } }]])
+  on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', async (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  const toasts: string[] = []
+  on('ui.toast', async (_, e) => {
+    toasts.push(e.text)
+
+    return { value: undefined }
+  })
+  const clock = mock.clock(on, { now: 0 })
+  on('ui.open', async () => ({ value: { isPlaced: true as const } }))
+  on('ui.blit', async () => ({ value: {} }))
+  on('session.surfaces', async () => ({ value: ['terminal' as const] }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const run = async (args: string) =>
+    (
+      await $.command.run({
+        command: 'pet',
+        args,
+        origin: { kind: 'composer' },
+        presentation: { isFullscreen: false, columns: 80 },
+      })
+    ).text
+
+  await run('quest')
+  const game = await $.ui.mount({ ...PANE, requestId: 'pets-quest', surface: 'terminal' })
+  // Stage 1 jumped every five ticks eats its first snack by tick 46 and is still under way at 80.
+  for (let beat = 0; beat < 16; beat += 1) {
+    await game.press({ key: 'jump' })
+    await clock.advance(50 * 5)
+  }
+  expect(toasts).toEqual([])
+
+  // Starting the stage again keeps the snacks so far: one is enough.
+  await run('quest')
+  expect(toasts).toContain('초코 evolved into a worker cat! (Lv 40)')
+  expect(kept.get('profile')).toMatchObject({ pets: { cat: { form: 'worker' } } })
+  await game.unmount()
+})
+
 test('at Lv 40 it evolves into the form of its nature, kept from then on', { options: { luck: false } }, async ($, on) => {
   // 38,020 xp, all tool calls: a turn short of Lv 40 (38,025), and a worker.
   const kept = new Map<string, unknown>([['profile', { species: 'cat', pets: { cat: { name: '초코', tools: 38_020 } } }]])

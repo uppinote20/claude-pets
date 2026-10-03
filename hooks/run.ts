@@ -8,8 +8,8 @@
  * @tested tests/pet.test.ts
  */
 import type { Pet } from '../types'
-import { PALETTE, spriteRows, worn } from './scene'
-import type { Pixels, Stage } from './scene'
+import { PALETTE, dressingOf, spriteRows } from './scene'
+import type { Form, Pixels, Stage } from './scene'
 import type { Species } from './species'
 
 /** Ticks a second the hooks module runs it at. */
@@ -158,7 +158,7 @@ export function advance(run: Run, kind: Species): Run {
 }
 
 /** The run as pixels, `run.width` across and `RUN_HEIGHT` down: clouds, grass, things, the pet. */
-export function paintRun(run: Run, kind: Species, stage: Stage): Pixels {
+export function paintRun(run: Run, kind: Species, stage: Stage, form: Form = 'curious'): Pixels {
   const width = run.width
   const pixels: Pixels = Array.from({ length: RUN_HEIGHT }, () => Array.from({ length: width }, () => null))
   const put = (x: number, y: number, color: number) => {
@@ -219,11 +219,9 @@ export function paintRun(run: Run, kind: Species, stage: Stage): Pixels {
   const top = groundTop - side - Math.round(run.lift)
 
   stamp(spriteRows(one, sprite, run.phase === 'over'), kind.ink, PET_X, top)
-  if (stage !== 'baby') {
-    const accessory = kind.accessory.mini
-    const { rows, x } = worn(accessory, side, 1)
-
-    stamp(rows, accessory.ink, PET_X + x, top + accessory.y)
+  // Dressed as the pane dresses it: a teen's accessory, an adult's gear.
+  for (const overlay of dressingOf(kind, sprite, false, stage, form, 1, false, one.frame)) {
+    stamp(overlay.rows, overlay.ink, PET_X + overlay.x, top + overlay.y)
   }
 
   return pixels

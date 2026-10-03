@@ -83,7 +83,7 @@ const SKY: Readonly<Record<Daypart, { rows: readonly string[]; ink: Readonly<Rec
 const STARS = [3, 11, 19, 27, 35] as const
 
 /** Pixels laid over the sprite, facing left, from its top left. */
-type Overlay = { rows: readonly string[]; x: number; y: number; ink: Readonly<Record<string, number>> }
+export type Overlay = { rows: readonly string[]; x: number; y: number; ink: Readonly<Record<string, number>> }
 
 /** The marks that are eyes, which gear must never cover. */
 const EYE_MARKS = new Set(['k', 'e', 'w'])
@@ -254,6 +254,40 @@ export function worn(accessory: Accessory, spriteWidth: number, dir: Pet['dir'])
  * The yard, `width` pixels across: the pet at step `one.x` of `steps` along it, what it wears
  * at its stage, its heart or sparkle, and a strip of grass with two flowers and its shadow.
  */
+/** The form an adult's gear is drawn for: its own, unless it is rare or its drawing has gear. */
+function dressedAsOf(sprite: Sprite, stage: Stage, form: Form): Nature {
+  return stage === 'adult' && form !== 'rare' && sprite.hasOwnGear !== true ? form : 'curious'
+}
+
+/**
+ * What a pet wears over its sprite, facing its way and placed from the sprite's top left: a
+ * teen's accessory, an adult's gear in its form (a cap, a headset or a pin takes the place of a
+ * head accessory), and on the big sprite a rare adult's mark. The pane and both games draw it
+ * from here, so a pet looks the same wherever it is.
+ */
+export function dressingOf(kind: Species, sprite: Sprite, isBig: boolean, stage: Stage, form: Form, dir: Pet['dir'], isWorking: boolean, frame: number): Overlay[] {
+  const spriteWidth = sprite.rows[0]?.length ?? 0
+  const isRare = isBig && stage === 'adult' && form === 'rare'
+  const dressedAs = dressedAsOf(sprite, stage, form)
+  const gear = gearOf(dressedAs, sprite.head ?? kind.head[isBig ? 'big' : 'mini'], isBig, isWorking, frame, sprite.rows)
+  const isHeadCovered = sprite.hasOwnGear === true || dressedAs === 'scholar' || dressedAs === 'gamer' || dressedAs === 'sweetie'
+  const onTop: Overlay[] = []
+
+  if (isRare) {
+    const { rows, x } = worn(kind.rare.overlay, spriteWidth, dir)
+
+    onTop.push({ rows, x, y: kind.rare.overlay.y, ink: kind.rare.overlay.ink })
+  } else if (stage !== 'baby' && !(isHeadCovered && kind.accessory.slot === 'head')) {
+    // An adult drawn on its own sits its accessory where the teen does.
+    const accessory = (isBig ? sprite.accessory ?? kind.teen.accessory : undefined) ?? kind.accessory[isBig ? 'big' : 'mini']
+    const { rows, x } = worn(accessory, spriteWidth, dir)
+
+    onTop.push({ rows, x, y: accessory.y, ink: accessory.ink })
+  }
+
+  return [...onTop, ...gear.map(overlay => facing(overlay, spriteWidth, dir))]
+}
+
 export function paint(one: Pet, kind: Species, size: Size, width: number, steps: number, options: PaintOptions = {}): Scene {
   const { isSad = false, withGrass = true, stage = 'baby', nature = 'curious', daypart = 'day', form = 'curious' } = options
   const look = LOOKS[size]
@@ -320,26 +354,9 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
     }
   }
   stamp(spriteRows(one, sprite, isSad), ink, left, top)
-  // A cap, a headset or a pin takes the place of a head accessory; a rare adult wears its mark.
-  // Gear comes with evolving: an adult wears what its form calls for. Babies and teens wear none.
-  const dressedAs = stage === 'adult' && form !== 'rare' && sprite.hasOwnGear !== true ? form : 'curious'
-  const gear = gearOf(dressedAs, sprite.head ?? kind.head[look.sprite], isBig, one.mood === 'work', one.frame, sprite.rows)
-  const isHeadCovered = sprite.hasOwnGear === true || dressedAs === 'scholar' || dressedAs === 'gamer' || dressedAs === 'sweetie'
-  if (isRare) {
-    const { rows, x } = worn(kind.rare.overlay, spriteWidth, one.dir)
-
-    stamp(rows, kind.rare.overlay.ink, left + x, top + kind.rare.overlay.y)
-  } else if (stage !== 'baby' && !(isHeadCovered && kind.accessory.slot === 'head')) {
-    // An adult drawn on its own sits its accessory where the teen does.
-    const accessory = (isBig ? sprite.accessory ?? kind.teen.accessory : undefined) ?? kind.accessory[look.sprite]
-    const { rows, x } = worn(accessory, spriteWidth, one.dir)
-
-    stamp(rows, accessory.ink, left + x, top + accessory.y)
-  }
-  for (const overlay of gear) {
-    const placed = facing(overlay, spriteWidth, one.dir)
-
-    stamp(placed.rows, placed.ink, left + placed.x, top + placed.y)
+  const dressedAs = dressedAsOf(sprite, stage, form)
+  for (const overlay of dressingOf(kind, sprite, isBig, stage, form, one.dir, one.mood === 'work', one.frame)) {
+    stamp(overlay.rows, overlay.ink, left + overlay.x, top + overlay.y)
   }
   // An adult twinkles beside its head every other tick, high then low, unless a heart or a
   // sparkle already shows there. The head is on the side it faces; with no room there, at the

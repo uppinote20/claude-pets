@@ -10,8 +10,8 @@
  * @tested tests/pet.test.ts
  */
 import type { Pet } from '../types'
-import { PALETTE, spriteRows, worn } from './scene'
-import type { Pixels, Stage } from './scene'
+import { PALETTE, dressingOf, spriteRows } from './scene'
+import type { Form, Pixels, Stage } from './scene'
 import type { Species } from './species'
 
 export const QUEST_TICK_MS = 50
@@ -449,7 +449,7 @@ function tilePixels(tiles: readonly string[], tx: number, ty: number, tick: numb
 }
 
 /** The view as pixels, `quest.width` across and `QUEST_HEIGHT` down. */
-export function paintQuest(quest: Quest, kind: Species, stage: Stage): Pixels {
+export function paintQuest(quest: Quest, kind: Species, stage: Stage, form: Form = 'curious'): Pixels {
   const width = quest.width
   const camera = cameraOf(quest)
   const pixels: Pixels = Array.from({ length: QUEST_HEIGHT }, () => Array.from({ length: width }, () => null))
@@ -508,11 +508,9 @@ export function paintQuest(quest: Quest, kind: Species, stage: Stage): Pixels {
     put(at - 1, 1, INK.marker)
     put(at + 2, 1, INK.marker)
   }
-  if (stage !== 'baby') {
-    const accessory = kind.accessory.mini
-    const { rows, x } = worn(accessory, SIDE, 1)
-
-    stamp(rows, accessory.ink, Math.round(quest.x) + x, top + accessory.y)
+  // Dressed as the pane dresses it: a teen's accessory, an adult's gear.
+  for (const overlay of dressingOf(kind, sprite, false, stage, form, 1, false, one.frame)) {
+    stamp(overlay.rows, overlay.ink, Math.round(quest.x) + overlay.x, top + overlay.y)
   }
 
   return pixels
