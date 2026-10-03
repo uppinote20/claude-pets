@@ -313,6 +313,39 @@ test('/pet play opens Pet Run, j jumps, the course repaints in place, and the be
   await game.unmount()
 })
 
+test('/pet play during a run keeps the run so far before starting a new one', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  mock.store(on, { profile: { species: 'cat', pets: { cat: { name: '초코' } } } })
+  on('ui.open', async () => ({ value: { isPlaced: true as const } }))
+  on('ui.blit', async () => ({ value: {} }))
+  on('ui.toast', async () => ({ value: undefined }))
+  on('session.surfaces', async () => ({ value: ['terminal' as const] }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const run = async (args: string) =>
+    (
+      await $.command.run({
+        command: 'pet',
+        args,
+        origin: { kind: 'composer' },
+        presentation: { isFullscreen: false, columns: 80 },
+      })
+    ).text
+
+  await run('play')
+  const game = await $.ui.mount({ ...PANE, requestId: 'pets-run', surface: 'terminal' })
+  await game.press({ key: 'jump' })
+  // Twenty ticks in, still airborne from the first jump: running, and a score on the board.
+  await clock.advance(50 * 20)
+  expect(await run('status')).not.toMatch(/Pet Run/)
+
+  await run('play')
+  expect(await run('status')).toMatch(/Pet Run best [1-9]\d*/)
+  expect(await game.find({ type: 'Text', text: /press j to start/ })).toBeDefined()
+  await game.unmount()
+})
+
 test('Pet Run off the terminal is an SVG with Jump and Again buttons', async $ => {
   for (const surface of ['desktop', 'mobile'] as const) {
     const game = await $.ui.mount({ ...PANE, requestId: 'pets-run', surface })

@@ -70,6 +70,9 @@ let course: Run | null = null
 let ticker: { cancel: () => void } | null = null
 // Redraw on every tick when a surface without Raster (desktop, VS Code, mobile) is attached.
 let isRemote = false
+// The level last seen for the pet that is out, so a level-up is announced once, whether it came
+// from a turn, a pat or a run.
+let shownLevel = 1
 
 function speciesOf(who: PetProfile): Species {
   return SPECIES[who.species] ?? SPECIES[DEFAULT_SPECIES]!
@@ -308,11 +311,16 @@ function runCells(run: Run, who: PetProfile): string {
   return pack(toCells(paintRun(run, speciesOf(who), stageOf(levelOf(statsOf(who))))))
 }
 
-/** Keeps a finished (or abandoned) run: its snacks feed the pet, its score may be the best. */
+/**
+ * Keeps a finished (or abandoned) run: its snacks feed the pet, its score may be the best, and a
+ * level the snacks reach is announced like any other.
+ */
 async function keepRun($: EngineInterface, run: Run): Promise<PetProfile> {
   const score = scoreOf(run)
+  const kept = await grow($, stats => ({ ...stats, snacks: stats.snacks + run.snacks, best: Math.max(stats.best, score) }))
+  shownLevel = announce($, kept, shownLevel)
 
-  return grow($, stats => ({ ...stats, snacks: stats.snacks + run.snacks, best: Math.max(stats.best, score) }))
+  return kept
 }
 
 /**
@@ -320,19 +328,23 @@ async function keepRun($: EngineInterface, run: Run): Promise<PetProfile> {
  * updates the text when the score or the phase changes. A run that just ended is kept.
  */
 async function tickRun($: EngineInterface): Promise<void> {
-  if (course === null || course.phase !== 'running') {
+  const run = course
+  if (run === null || run.phase !== 'running') {
     return
   }
   const who = await read($, profile)
-  const now = advance(course, speciesOf(who))
+  // Closed or started over while the profile was read: that course is no longer this one to move.
+  if (course !== run) {
+    return
+  }
+  const now = advance(run, speciesOf(who))
   course = now
 
   void $.ui.blit({ requestId: PLAY, key: 'run', cells: runCells(now, who) })
   if (now.phase === 'over') {
     await update($, runView, () => viewOf(now))
-    const kept = await keepRun($, now)
-
-    $.ui.toast(`${calledOf(kept)} ran ${scoreOf(now)} and ate ${now.snacks} snacks.`)
+    $.ui.toast(`${calledOf(who)} ran ${scoreOf(now)} and ate ${now.snacks} snacks.`)
+    await keepRun($, now)
   } else if (isRemote || now.tick % 10 === 0) {
     await update($, runView, () => viewOf(now))
   }
@@ -364,8 +376,6 @@ function announce($: EngineInterface, now: PetProfile, shown: number): number {
 export const register: Register = on => {
   // Tool calls since the last save: the store is written once a turn, not on every call.
   let unsavedTools = 0
-  // The level last seen for the pet that is out, so a level-up is announced once.
-  let shownLevel = 1
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -433,12 +443,21 @@ export const register: Register = on => {
       case 'status':
         return { text: statusOf(who) }
       case 'play': {
+        // A run still going is kept before a new one takes its place, as closing the pane would.
+        const going = course
+        ticker?.cancel()
+        ticker = null
         course = newRun(course?.width ?? RUN_MIN, Math.floor(Math.random() * 2 ** 31))
+        if (going !== null && going.phase === 'running') {
+          await keepRun($, going)
+        }
         isRemote = (await $.session.surfaces()).some(surface => surface !== 'terminal')
         await update($, runView, () => viewOf(course ?? newRun(RUN_MIN)))
-        ticker?.cancel()
-        ticker = $.clock.every(RUN_TICK_MS, () => void tickRun($))
         const opened = await $.ui.open({ id: PLAY, title: PLAY_TITLE, rows: RUN_HEIGHT / 2 + 2, focus: true, closeOnEscape: true })
+        // Only a placed pane can be closed, and closing is what stops the clock.
+        if (opened.isPlaced) {
+          ticker = $.clock.every(RUN_TICK_MS, () => void tickRun($))
+        }
 
         return {
           text: opened.isPlaced
@@ -607,7 +626,8 @@ export const register: Register = on => {
       course = newRun(fits, course?.seed ?? 1)
     }
     const run = course
-    const best = statsOf(who).best
+    // A run just over counts before it is kept, so both surfaces show the new best at once.
+    const best = Math.max(statsOf(who).best, view.phase === 'over' ? view.score : 0)
     const hint = view.phase === 'ready' ? 'press j to start' : view.phase === 'over' ? 'ouch! r to run again' : ''
     const onJump = () => {
       if (course !== null) {
@@ -631,7 +651,7 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Box>
             <Text color={PASTEL.pink} bold>{`${calledOf(who)} `}</Text>
-            <Text color={PASTEL.gray}>{`score ${view.score}  best ${Math.max(best, view.phase === 'over' ? view.score : 0)}  snacks ${view.snacks}`}</Text>
+            <Text color={PASTEL.gray}>{`score ${view.score}  best ${best}  snacks ${view.snacks}`}</Text>
             {hint !== '' && <Text color={PASTEL.yellow}>{`  ${hint}`}</Text>}
           </Box>
           <Raster key="run" columns={run.width} rows={RUN_HEIGHT / 2} cells={runCells(run, who)} />
