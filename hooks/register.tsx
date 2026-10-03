@@ -25,8 +25,8 @@ import { DEFAULT_SIZE, SIZES, STAGE_LEVELS, cardWidthFor, lookOf, pixelsSvg, sta
 import { QUEST_HEIGHT, QUEST_TICK_MS, STAGES, advanceQuest, jumpQuest, newQuest, paintQuest, questScore } from './quest'
 import type { Quest } from './quest'
 import type { Form } from './scene'
-import { DAYPARTS, daypartOf, musingOf, natureOf, rhythmOf } from './nature'
-import type { Daypart, Nature } from './nature'
+import { DAYPARTS, SIDES, daypartOf, driftLeaning, isKnown, lifetimeLeaning, musingOf, natureOf, reformOf, rhythmOf } from './nature'
+import type { Daypart, Nature, Side } from './nature'
 import { GIFT_CHANCE, LUCKY_PAT_CHANCE, RARE_CHANCE, SHINY_CHANCE, giftOf, worthOf } from './luck'
 import { RUN_HEIGHT, RUN_TICK_MS, advance, jump, newRun, paintRun, scoreOf } from './run'
 import type { Run } from './run'
@@ -68,7 +68,7 @@ const PANEL_BAR = 20
 
 const PASTEL = { yellow: '#ffd787', pink: '#ffafd7', green: '#afd7af', ink: '#3a2a2a', gray: '#b2b2b2', dim: '#5f5f5f' } as const
 const NEWBORN: Pet = { x: 0, dir: 1, frame: 0, mood: 'walk', hold: 0, idle: 0 }
-const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0], form: '' }
+const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0], form: '', leaning: [], day: '', brought: [0, 0, 0, 0] }
 const STRANGER: PetProfile = { species: DEFAULT_SPECIES, size: DEFAULT_SIZE, pets: {} }
 
 const pet = atom({ plugin: 'pets', key: 'pet' } as const, NEWBORN)
@@ -98,6 +98,15 @@ function formOf(stats: PetStats): Form {
   return isForm(stats.form) ? stats.form : natureOf(stats)
 }
 
+/** The leaning the yard shows: none until the pet knows you, then the kept one (or its life's). */
+function yardLeaning(stats: PetStats): readonly number[] {
+  if (!isKnown(stats)) {
+    return []
+  }
+
+  return stats.leaning.length === SIDES.length ? stats.leaning : lifetimeLeaning(stats)
+}
+
 /** `scholar`, or for the rare form its own name (`celestial`). */
 function formName(kind: Species, form: Form): string {
   return form === 'rare' ? kind.rare.name : form
@@ -106,6 +115,32 @@ function formName(kind: Species, form: Form): string {
 let utcOffset = 0
 // The engine's clock as of the last tick (tests move it with mock.clock).
 let clockNow = Date.now()
+
+/** The person's local date, `YYYY-MM-DD`: the leaning moves once a day. */
+function dayNow(): string {
+  return new Date(clockNow + utcOffset * 60_000).toISOString().slice(0, 10)
+}
+
+/**
+ * Tallies what something brought into the day's count; when the day has changed, first moves
+ * the leaning toward the day before and lets an adult follow it.
+ */
+function tally(stats: PetStats, brought: Readonly<Record<Side, number>>, today: string): PetStats {
+  const isNewDay = stats.day !== '' && stats.day !== today
+  const start = stats.leaning.length === SIDES.length ? stats.leaning : lifetimeLeaning(stats)
+  const leaning = isNewDay
+    ? driftLeaning(start, Object.fromEntries(SIDES.map((side, at) => [side, stats.brought[at] ?? 0])) as Record<Side, number>)
+    : start
+  const kept = isNewDay ? [0, 0, 0, 0] : stats.brought
+
+  return {
+    ...stats,
+    leaning,
+    form: isNewDay ? reformOf(stats.form, leaning) : stats.form,
+    day: today,
+    brought: SIDES.map((side, at) => (kept[at] ?? 0) + brought[side]),
+  }
+}
 
 /** The quarter of the day it is where the person is. */
 function daypartNow(): Daypart {
@@ -202,6 +237,12 @@ function toStats(fields: Record<string, unknown>): PetStats {
     shiny: fields.shiny === true,
     hours: DAYPARTS.map((_, at) => count(Array.isArray(fields.hours) ? fields.hours[at] : 0)),
     form: typeof fields.form === 'string' && isForm(fields.form) ? fields.form : '',
+    leaning:
+      Array.isArray(fields.leaning) && fields.leaning.length === SIDES.length && fields.leaning.every(share => typeof share === 'number' && share >= 0 && share <= 1)
+        ? (fields.leaning as number[])
+        : [],
+    day: typeof fields.day === 'string' && /^\d{4}-\d\d-\d\d$/.test(fields.day) ? fields.day : '',
+    brought: SIDES.map((_, at) => (Array.isArray(fields.brought) && typeof fields.brought[at] === 'number' && fields.brought[at] >= 0 ? fields.brought[at] : 0)),
   }
 }
 
@@ -392,6 +433,26 @@ async function grow($: EngineInterface, change: (stats: PetStats) => PetStats): 
   return now
 }
 
+/**
+ * Grows the pet that is out and tallies what the change brought into today's leaning, as it is
+ * kept: pats, game snacks and turns each count the moment they are saved, so none is missed
+ * between turns or sessions. An adult that follows a new day's leaning says so.
+ */
+async function growTallied($: EngineInterface, change: (stats: PetStats) => PetStats, brought: Partial<Record<Side, number>>): Promise<PetProfile> {
+  let reformed = ''
+  const now = await grow($, stats => {
+    const tallied = tally(stats, { worker: 0, scholar: 0, sweetie: 0, gamer: 0, ...brought }, dayNow())
+    reformed = tallied.form !== stats.form ? tallied.form : ''
+
+    return change(tallied)
+  })
+  if (reformed !== '') {
+    $.ui.toast(`${calledOf(now)} took after you: a ${reformed} ${speciesOf(now).label} now.`)
+  }
+
+  return now
+}
+
 /** The pet's own tick: a step by its nature. */
 async function tickPet($: EngineInterface): Promise<void> {
   const nature = natureOf(statsOf(await read($, profile)))
@@ -415,7 +476,7 @@ function runCells(run: Run, who: PetProfile): string {
  */
 async function keepRun($: EngineInterface, run: Run): Promise<PetProfile> {
   const score = scoreOf(run)
-  const kept = await grow($, stats => ({ ...stats, snacks: stats.snacks + run.snacks, best: Math.max(stats.best, score) }))
+  const kept = await growTallied($, stats => ({ ...stats, snacks: stats.snacks + run.snacks, best: Math.max(stats.best, score) }), { gamer: run.snacks * XP_PER_SNACK })
   shownLevel = announce($, kept, shownLevel)
 
   return kept
@@ -461,11 +522,15 @@ function questCells(stage: Quest, who: PetProfile): string {
  * the snacks reach is announced like any other.
  */
 async function keepQuest($: EngineInterface, stage: Quest): Promise<PetProfile> {
-  const kept = await grow($, stats => ({
-    ...stats,
-    snacks: stats.snacks + stage.snacks,
-    cleared: stage.phase === 'clear' ? Math.max(stats.cleared, stage.stage + 1) : stats.cleared,
-  }))
+  const kept = await growTallied(
+    $,
+    stats => ({
+      ...stats,
+      snacks: stats.snacks + stage.snacks,
+      cleared: stage.phase === 'clear' ? Math.max(stats.cleared, stage.stage + 1) : stats.cleared,
+    }),
+    { gamer: stage.snacks * XP_PER_SNACK },
+  )
   shownLevel = announce($, kept, shownLevel)
 
   return kept
@@ -587,7 +652,7 @@ export const register: Register = (on, options) => {
       case 'pat': {
         const isLucky = lucky(LUCKY_PAT_CHANCE)
         await update($, pet, one => act(one, 'love', 8))
-        const now = await grow($, stats => ({ ...stats, pats: stats.pats + 1, bonus: stats.bonus + (isLucky ? XP_PER_PAT * 2 : 0) }))
+        const now = await growTallied($, stats => ({ ...stats, pats: stats.pats + 1, bonus: stats.bonus + (isLucky ? XP_PER_PAT * 2 : 0) }), { sweetie: XP_PER_PAT })
         shownLevel = announce($, now, shownLevel)
 
         return { text: `${called} is pleased.${isLucky ? ` Lucky pat! +${XP_PER_PAT * 3} xp` : ''}${await openPane($, now)}` }
@@ -716,20 +781,25 @@ export const register: Register = (on, options) => {
     const gift = isMain && lucky(GIFT_CHANCE) ? giftOf(Math.random()) : null
     const part = daypartNow()
     let worth = { xp: 0, makesShiny: false }
-    const now = await grow($, stats => {
-      worth = gift === null ? worth : worthOf(gift, stats.shiny)
+    // The turn adds its tools and its own work to the day's tally (pats and snacks count as they are kept).
+    const now = await growTallied(
+      $,
+      stats => {
+        worth = gift === null ? worth : worthOf(gift, stats.shiny)
 
-      return {
-        ...stats,
-        tools: stats.tools + tools,
-        turns: stats.turns + (isMain ? 1 : 0),
-        tokens: stats.tokens + tokens,
-        gifts: stats.gifts + (gift === null ? 0 : 1),
-        bonus: stats.bonus + worth.xp,
-        shiny: stats.shiny || worth.makesShiny,
-        hours: isMain ? stats.hours.map((count, at) => (DAYPARTS[at] === part ? count + 1 : count)) : stats.hours,
-      }
-    })
+        return {
+          ...stats,
+          tools: stats.tools + tools,
+          turns: stats.turns + (isMain ? 1 : 0),
+          tokens: stats.tokens + tokens,
+          gifts: stats.gifts + (gift === null ? 0 : 1),
+          bonus: stats.bonus + worth.xp,
+          shiny: stats.shiny || worth.makesShiny,
+          hours: isMain ? stats.hours.map((count, at) => (DAYPARTS[at] === part ? count + 1 : count)) : stats.hours,
+        }
+      },
+      { worker: tools, scholar: (isMain ? XP_PER_TURN : 0) + tokens / TOKENS_PER_XP },
+    )
 
     if (gift !== null) {
       await update($, pet, one => act(one, 'gift', 12))
@@ -770,7 +840,7 @@ export const register: Register = (on, options) => {
       const isBeside = !isDocked && e.props.bodyColumns >= fewest + PANEL + 4
       const room = isBeside ? e.props.bodyColumns - PANEL - 4 : e.props.bodyColumns - 2
       const columns = Math.max(fewest, Math.min(MAX_YARD, room))
-      const scene = paint(one, kind, who.size, columns, STEPS, { isSad, stage: stageOf(levelOf(stats)), form: formOf(stats), nature: natureOf(stats), daypart: daypartNow() })
+      const scene = paint(one, kind, who.size, columns, STEPS, { isSad, stage: stageOf(levelOf(stats)), form: formOf(stats), nature: natureOf(stats), daypart: daypartNow(), leaning: yardLeaning(stats) })
       const cells = toCells(scene.pixels)
       const width = cells[0]?.length ?? 0
       const level = levelOf(stats)
@@ -840,7 +910,7 @@ export const register: Register = (on, options) => {
     const { Svg } = $.ui.resolve(e)
     const tally = tallyLine(stats)
     const across = Math.max(fewest, cardWidthFor(who.size, tally), Math.min(MAX_CARD, Math.floor((e.props.bodyColumns * CELL_PX) / unit) - 4))
-    const scene = paint(one, kind, who.size, across, STEPS, { isSad, withGrass: false, stage: stageOf(levelOf(stats)), form: formOf(stats), nature: natureOf(stats), daypart: daypartNow() })
+    const scene = paint(one, kind, who.size, across, STEPS, { isSad, withGrass: false, stage: stageOf(levelOf(stats)), form: formOf(stats), nature: natureOf(stats), daypart: daypartNow(), leaning: yardLeaning(stats) })
     const caption = { name: stats.name, level: levelOf(stats), progress: progressOf(stats), says, tally, daypart: daypartNow() }
     const alt = `${titleOf(who)}, Lv ${levelOf(stats)}${says === '' ? '' : `: ${says}`}`
 

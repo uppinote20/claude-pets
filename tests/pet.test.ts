@@ -13,11 +13,11 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { giftOf, worthOf } from '../hooks/luck'
-import { daypartOf, natureOf, rhythmOf } from '../hooks/nature'
+import { daypartOf, driftLeaning, natureOf, reformOf, rhythmOf } from '../hooks/nature'
 import { QUEST_ROWS, STAGES, advanceQuest, jumpQuest, newQuest } from '../hooks/quest'
 import type { Quest } from '../hooks/quest'
 import { advance, jump, newRun, scoreOf } from '../hooks/run'
-import { bodyOf, paint, stageOf } from '../hooks/scene'
+import { bodyOf, paint, stageOf, yardOf } from '../hooks/scene'
 import { SPECIES } from '../hooks/species'
 
 const PROPS = {
@@ -647,7 +647,7 @@ test('a shiny pet is drawn in its shiny colors and says so', async ($, on) => {
 })
 
 test('a nature shows once one side of it stands out, and a rhythm once its hours do', () => {
-  const none = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0], form: '' }
+  const none = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0], form: '', leaning: [], day: '', brought: [0, 0, 0, 0] }
 
   expect(natureOf({ ...none, tools: 30 })).toBe('curious')
   expect(natureOf({ ...none, tools: 300, turns: 10 })).toBe('worker')
@@ -778,4 +778,117 @@ test('an adult without a drawing of its own is the teen in its gear, and the rar
   const colors = (form: 'rare' | 'worker') => new Set(paint(one, dog, 'medium', 30, 20, { stage: 'adult', form }).pixels.flat())
   expect(colors('rare').has(0xc3cde0)).toBe(true)
   expect(colors('worker').has(0xc3cde0)).toBe(false)
+})
+
+test('the leaning drifts toward what a day brought, and an adult follows only once it has clearly moved on', () => {
+  const worker = [0.9, 0.05, 0.03, 0.02]
+  const after = driftLeaning(worker, { worker: 0, scholar: 10, sweetie: 0, gamer: 0 })
+
+  expect(after.map(share => Math.round(share * 10_000) / 10_000)).toEqual([0.792, 0.164, 0.0264, 0.0176])
+  expect(driftLeaning(worker, { worker: 0, scholar: 0, sweetie: 0, gamer: 0 })).toEqual(worker)
+
+  expect(reformOf('worker', [0.45, 0.45, 0.05, 0.05])).toBe('worker')
+  expect(reformOf('worker', [0.2, 0.6, 0.1, 0.1])).toBe('scholar')
+  expect(reformOf('rare', [0.05, 0.9, 0.03, 0.02])).toBe('rare')
+  expect(reformOf('', [0.05, 0.9, 0.03, 0.02])).toBe('')
+})
+
+test('the yard fills with props by share, one at a time', () => {
+  expect(yardOf([], 4)).toEqual([0, 0, 0, 0])
+  expect(yardOf([0.9, 0.05, 0.03, 0.02], 4)).toEqual([4, 0, 0, 0])
+  expect(yardOf([0.55, 0.2, 0.15, 0.1], 4)).toEqual([2, 1, 1, 0])
+  expect(yardOf([0.3, 0.3, 0.2, 0.2], 4)).toEqual([1, 1, 1, 1])
+
+  // A worker's yard has its cone; the gamer's, its arcade cabinet.
+  const one = { x: 10, dir: -1 as const, frame: 2, mood: 'walk' as const, hold: 0, idle: 0 }
+  const colors = (leaning: number[]) => new Set(paint(one, SPECIES.cat!, 'medium', 40, 20, { leaning }).pixels.flat())
+  expect(colors([0.9, 0.05, 0.03, 0.02]).has(0xff8a3d)).toBe(true)
+  expect(colors([0.05, 0.05, 0.05, 0.85]).has(0x6a5aa8)).toBe(true)
+  expect(colors([]).has(0xff8a3d)).toBe(false)
+})
+
+test('the leaning moves once a day, and an adult whose leaning has moved on takes the new side', { options: { luck: false } }, async ($, on) => {
+  // A worker adult whose leaning has drifted to talk; yesterday was all talk too.
+  const clock = mock.clock(on, { now: Date.UTC(2026, 9, 2, 12, 0) })
+  const kept = new Map<string, unknown>([
+    [
+      'profile',
+      {
+        species: 'cat',
+        pets: { cat: { name: '초코', tools: 40_000, form: 'worker', leaning: [0.22, 0.58, 0.1, 0.1], day: '2026-10-01', brought: [0, 60, 0, 0] } },
+      },
+    ],
+  ])
+  on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', async (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  const toasts: string[] = []
+  on('ui.toast', async (_, e) => {
+    toasts.push(e.text)
+
+    return { value: undefined }
+  })
+  on('turn.complete', async () => ({ text: '' }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await clock.advance(600)
+
+  // The first turn of a new day moves the leaning toward yesterday's talk; the worker fades.
+  const turn = { answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as const
+  await $.turn.complete(turn)
+  expect(toasts).toEqual(['초코 took after you: a scholar cat now.'])
+  const cat = () => (kept.get('profile') as { pets: { cat: { form: string; day: string; brought: number[]; leaning: number[] } } }).pets.cat
+  expect(cat().form).toBe('scholar')
+  expect(cat().day).toBe('2026-10-02')
+  expect(cat().brought).toEqual([0, 5, 0, 0])
+
+  // Later turns the same day only add to its tally: the leaning stays put.
+  const leaning = cat().leaning
+  await $.turn.complete(turn)
+  expect(cat().leaning).toEqual(leaning)
+  expect(cat().brought).toEqual([0, 10, 0, 0])
+})
+
+test('a pat counts toward the day the moment it is kept, before any turn and only once', { options: { luck: false } }, async ($, on) => {
+  const clock = mock.clock(on, { now: Date.UTC(2026, 9, 2, 12, 0) })
+  const kept = new Map<string, unknown>([['profile', { species: 'cat', pets: { cat: { name: '초코', day: '2026-10-02', brought: [0, 0, 0, 0] } } }]])
+  on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', async (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  on('ui.open', async () => ({ value: { isPlaced: true as const } }))
+  on('turn.complete', async () => ({ text: '' }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await clock.advance(600)
+  const brought = () => (kept.get('profile') as { pets: { cat: { brought: number[] } } }).pets.cat.brought
+
+  // The first thing this session does is a pat: it is the sweetie side's, at once.
+  await $.command.run({ command: 'pet', args: 'pat', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })
+  expect(brought()).toEqual([0, 0, 2, 0])
+
+  // A turn then adds its own work, and does not count the pat again.
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' })
+  expect(brought()).toEqual([0, 5, 2, 0])
+})
+
+test('the card grass takes the shade of the leaning, as the pane grass does', { options: { luck: false } }, async ($, on) => {
+  // Known (well past 60 xp) and all for the worker: the grass leans its way.
+  mock.store(on, { profile: { species: 'cat', pets: { cat: { name: '초코', tools: 400, leaning: [1, 0, 0, 0] } } } })
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const card = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const source = (await card.find({ type: 'Svg' }))?.props.source ?? ''
+  // The plain green of a pet that leans nowhere is gone from the mound.
+  expect(source).not.toContain('fill="#b5dcae"')
+  await card.unmount()
 })
