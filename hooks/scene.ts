@@ -220,7 +220,7 @@ function escapeXml(text: string): string {
   return text.replace(/[&<>"']/g, mark => `&#${mark.codePointAt(0)};`)
 }
 
-/** A rough width for `text` at `fontSize`: wide (CJK, Hangul) characters count double. */
+/** A rough width for `text` at `fontSize`: wide (CJK, Hangul) characters take 1 em, the rest 0.6 em. */
 function textWidth(text: string, fontSize: number): number {
   return [...text].reduce((sum, mark) => sum + (/[ᄀ-ᅟ⺀-꓏가-힣豈-﫿＀-｠]/u.test(mark) ? 1 : 0.6), 0) * fontSize
 }

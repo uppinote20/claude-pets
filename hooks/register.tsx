@@ -416,8 +416,9 @@ export const register: Register = on => {
       const width = cells[0]?.length ?? 0
       const level = levelOf(stats)
       const hasPanel = isDocked || isBeside
-      const [filled, empty] = barOf(progressOf(stats))
-      const [wide, rest] = barOf(progressOf(stats), PANEL_BAR)
+      const progress = progressOf(stats)
+      const [filled, empty] = barOf(progress)
+      const [wide, rest] = barOf(progress, PANEL_BAR)
       const yard = <Raster key="pet" columns={width} rows={cells.length} cells={pack(cells)} />
       const panel = (
         <Box flexDirection="column" width={PANEL} paddingLeft={isBeside ? 2 : 0}>
