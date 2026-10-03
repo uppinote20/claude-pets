@@ -37,9 +37,10 @@ jobs:
       - name: Test
         run: claude plugin test .
 
-      # The README images are generated from the sprite data: a sprite edit without a
-      # regenerate leaves them stale.
-      - name: Check species images are up to date
+      # The README images are generated from the sprite data and the drawing code: an edit
+      # to either without a regenerate leaves them stale.
+      - name: Check generated images are up to date
         run: |
           node scripts/sprites.mjs
+          node scripts/demo.mjs
           git diff --exit-code -- assets/

@@ -19,7 +19,8 @@ claude-pets/
 ├── types/index.d.ts       # State contract ($.state values under `pets`)
 ├── tests/pet.test.ts      # `claude plugin test .`
 ├── scripts/sprites.mjs    # Regenerates assets/*.svg from the sprite data
-└── assets/                # README species images (generated, committed)
+├── scripts/demo.mjs       # Regenerates assets/demo.gif with hooks/scene.ts (GIF encoder inline)
+└── assets/                # README images (generated, committed)
 ```
 
 ## Commands
@@ -27,7 +28,7 @@ claude-pets/
 ```bash
 claude plugin validate .claude-plugin/plugin.json   # manifest + hooks module
 claude plugin test .                                # tests/*.test.ts
-node scripts/sprites.mjs                            # after a sprite change (Node 22.18+)
+node scripts/sprites.mjs && node scripts/demo.mjs   # after a sprite or drawing change (Node 22.18+)
 claude --plugin-dir .                               # try it in a session
 ```
 
