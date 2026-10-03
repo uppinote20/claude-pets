@@ -99,7 +99,8 @@ function lzw(indices, minSize) {
 }
 
 function gif(frames, width, height) {
-  const colors = [BACKDROP, ...new Set(frames.flatMap(frame => frame.flat()).filter(color => color !== null))]
+  // The backdrop is slot 0 (the screen's background color), so a sprite of the same color must not take a second slot.
+  const colors = [BACKDROP, ...new Set(frames.flatMap(frame => frame.flat()).filter(color => color !== null && color !== BACKDROP))]
   const depth = Math.max(1, Math.ceil(Math.log2(colors.length)))
   const table = colors.concat(Array.from({ length: (1 << depth) - colors.length }, () => 0))
   const index = new Map(colors.map((color, i) => [color, i]))
