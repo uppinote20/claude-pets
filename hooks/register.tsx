@@ -520,8 +520,9 @@ async function tickRun($: EngineInterface): Promise<void> {
   void $.ui.blit({ requestId: PLAY, key: 'run', cells: runCells(now, who) })
   if (now.phase === 'over') {
     await update($, runView, () => viewOf(now))
-    await $.ui.toast(`${calledOf(who)} ran ${scoreOf(now)} and ate ${now.snacks} snacks.`)
+    // Saved first: a toast that fails must not cost the run its snacks.
     await keepRun($, now)
+    await $.ui.toast(`${calledOf(who)} ran ${scoreOf(now)} and ate ${now.snacks} snacks.`)
   } else if (isRemote || now.tick % 10 === 0) {
     await update($, runView, () => viewOf(now))
   }
@@ -591,12 +592,13 @@ async function tickQuest($: EngineInterface): Promise<void> {
   void $.ui.blit({ requestId: QUEST, key: 'quest', cells: questCells(now, who) })
   if (now.phase !== 'running') {
     await update($, questView, () => questViewOf(now))
+    // As the run: saved before the toast.
+    await keepQuest($, now)
     await $.ui.toast(
       now.phase === 'clear'
         ? `Stage ${now.stage + 1} clear! ${calledOf(who)} ate ${now.snacks} snacks.`
         : `${calledOf(who)} will try stage ${now.stage + 1} again.`,
     )
-    await keepQuest($, now)
   } else if (isRemote || now.tick % 10 === 0) {
     await update($, questView, () => questViewOf(now))
   }
