@@ -1,20 +1,8 @@
-# claude-pets
+<h1 align="center"><img src="assets/banner.svg" width="880" alt="claude-pets"></h1>
 
-A pixel pet that lives in a Claude Code pane. It wanders while you work, reacts to what your session does, and grows across sessions.
+A pixel pet that lives in a Claude Code pane. It wanders while you work, reacts to what your session does, and grows across sessions. Eight to choose from: <code>cat</code> · <code>chick</code> · <code>dog</code> · <code>slime</code> · <code>bunny</code> · <code>hamster</code> · <code>penguin</code> · <code>frog</code>.
 
 <p align="center"><img src="assets/demo.gif" width="480" alt="The pets walking, working, cheering, being patted and napping"></p>
-
-<p align="center">
-  <img src="assets/cat.svg" width="64" alt="cat">
-  <img src="assets/chick.svg" width="64" alt="chick">
-  <img src="assets/dog.svg" width="64" alt="dog">
-  <img src="assets/slime.svg" width="64" alt="slime">
-  <img src="assets/bunny.svg" width="64" alt="bunny">
-  <img src="assets/hamster.svg" width="64" alt="hamster">
-  <img src="assets/penguin.svg" width="64" alt="penguin">
-  <img src="assets/frog.svg" width="64" alt="frog">
-  <br><sub><code>cat</code> · <code>chick</code> · <code>dog</code> · <code>slime</code> · <code>bunny</code> · <code>hamster</code> · <code>penguin</code> · <code>frog</code></sub>
-</p>
 
 > [!NOTE]
 > This is a Claude Code *mod* (a plugin of function hooks). The mod API is early access, so a new Claude Code release may break the pet until this plugin catches up.

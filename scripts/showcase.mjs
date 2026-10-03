@@ -142,6 +142,72 @@ function rects(pixels, unit, left, top) {
   )
 }
 
+// Banner: every species out on the grass at night, under the name.
+{
+  const { PALETTE } = await import('../hooks/scene.ts')
+  const unit = 8
+  const across = 160
+  const rows = 20
+  const grassTop = 17
+  const pixels = Array.from({ length: rows }, () => Array.from({ length: across }, () => null))
+  const put = (x, y, color) => {
+    if (pixels[y]?.[x] !== undefined) {
+      pixels[y][x] = color
+    }
+  }
+  // Grass: a tufted top row over deeper ones, a flower now and then.
+  for (let x = 0; x < across; x += 1) {
+    put(x, grassTop, x % 4 === 1 ? PALETTE.tuft : PALETTE.grass)
+    for (let y = grassTop + 1; y < rows; y += 1) {
+      put(x, y, PALETTE.grassDeep)
+    }
+  }
+  for (const [x, color] of [[11, PALETTE.pink], [47, PALETTE.yellow], [86, PALETTE.pink], [124, PALETTE.yellow], [153, PALETTE.pink]]) {
+    put(x, grassTop, color)
+  }
+  // The eight, facing one way and the other, mid-step.
+  Object.values(SPECIES).forEach((kind, at) => {
+    const one = { x: 0, dir: at % 2 === 0 ? 1 : -1, frame: at % 2 === 0 ? 2 : 1, mood: 'walk', hold: 0, idle: 0 }
+    const sprite = kind.big
+    const left = 6 + at * 19
+    spriteRows(one, sprite, false).forEach((line, y) =>
+      [...line].forEach((mark, x) => {
+        const color = kind.ink[mark]
+        if (color !== undefined) {
+          put(left + x, grassTop - sprite.rows.length + y, color)
+        }
+      }),
+    )
+  })
+  const width = across * unit
+  const height = 150 + rows * unit
+  // The moon and a few stars in the sky above, beside the name.
+  const sky = Array.from({ length: 16 }, () => Array.from({ length: 60 }, () => null))
+  for (const [y, line] of ['..mm', '.m..', '.m..', '..mm'].entries()) {
+    ;[...line].forEach((mark, x) => mark === 'm' && (sky[3 + y][48 + x] = 0xfff3b0))
+  }
+  for (const [x, y] of [[6, 4], [19, 9], [30, 3], [41, 12], [57, 8], [24, 14]]) {
+    sky[y][x] = 0xfffaf0
+  }
+  write(
+    'banner.svg',
+    [
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges" role="img" aria-label="claude-pets: eight pixel pets on the grass at night">`,
+      `<clipPath id="card"><rect width="${width}" height="${height}" rx="16"/></clipPath>`,
+      `<g clip-path="url(#card)">`,
+      `<rect width="${width}" height="${height}" fill="${hex(BACKDROP)}"/>`,
+      rects(sky, unit, width - 60 * unit, 0),
+      `<text x="48" y="92" font-size="72" font-weight="800" fill="#ffd787" ${FONT}>claude-pets</text>`,
+      `<text x="52" y="132" font-size="24" fill="${LABEL}" ${FONT}>a pixel pet that lives in your Claude Code pane</text>`,
+      rects(pixels, unit, 0, 150),
+      '</g>',
+      '</svg>',
+      '',
+    ].join(''),
+    `${Object.keys(SPECIES).length} pets`,
+  )
+}
+
 // Yards: the props and grass each leaning grows, a mixed one, and the night.
 {
   const panels = [
