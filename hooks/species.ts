@@ -35,6 +35,8 @@ export type Species = {
   ink: Readonly<Record<string, number>>
   big: Sprite
   mini: Sprite
+  /** The rare shiny's colors, laid over `ink`. */
+  shiny: Readonly<Record<string, number>>
   /** Worn from the grown stage on, at each sprite size. */
   accessory: { big: Accessory; mini: Accessory }
   purr: string
@@ -86,6 +88,7 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 4: 'pbommoop' },
       feetApart: { 7: '.o....o.' },
     },
+    shiny: { o: 0xd9c2ff, m: 0xa98ad8 },
     accessory: {
       big: { rows: ['r...r', 'rrRrr', 'r...r'], x: 7, y: 0, ink: RIBBON },
       mini: { rows: ['r.r', 'rRr'], x: 5, y: 0, ink: RIBBON },
@@ -129,6 +132,7 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 4: '.boyyop.' },
       feetApart: { 7: '.y....y.' },
     },
+    shiny: { o: 0xbfeaff, l: 0xe6f8ff },
     accessory: {
       big: { rows: ['.f.', 'fYf', '.f.'], x: 7, y: 0, ink: BLOOM },
       mini: { rows: ['.f.', 'fYf'], x: 5, y: 0, ink: BLOOM },
@@ -172,6 +176,7 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 3: 'dbcmmcpd' },
       feetApart: { 7: '.o....o.' },
     },
+    shiny: { o: 0xf7f2ea, d: 0x8a8a9a },
     accessory: {
       big: { rows: ['ssssssss', '.sS.....'], x: 2, y: 8, ink: SCARF },
       mini: { rows: ['ssssss'], x: 1, y: 4, ink: SCARF },
@@ -215,6 +220,7 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 5: 'pbommoop' },
       feetApart: { 7: 'dddddddd' },
     },
+    shiny: { o: 0xffb8dc, l: 0xffe6f2, d: 0xe48ab8, m: 0xc06a98 },
     accessory: {
       big: { rows: ['y.y.y', 'yyyyy'], x: 4, y: 0, ink: GOLD },
       mini: { rows: ['y..y', 'yyyy'], x: 2, y: 0, ink: GOLD },
@@ -258,6 +264,7 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 4: 'pbommoop' },
       feetApart: { 7: '.o....o.' },
     },
+    shiny: { o: 0xffe6a0 },
     accessory: {
       big: { rows: ['r...r', 'rrRrr', 'r...r'], x: 4, y: 1, ink: RIBBON },
       mini: { rows: ['rRr'], x: 3, y: 2, ink: RIBBON },
@@ -301,6 +308,7 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 3: 'bccmmccp' },
       feetApart: { 7: '.p....p.' },
     },
+    shiny: { o: 0xd6d8e8 },
     accessory: {
       big: { rows: ['..gg', '.gg.', 'gg..'], x: 8, y: 0, ink: LEAF },
       mini: { rows: ['.g', 'g.'], x: 6, y: 0, ink: LEAF },
@@ -344,6 +352,7 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 4: 'obcyycpo' },
       feetApart: { 7: '.y....y.' },
     },
+    shiny: { o: 0x8f64bf },
     accessory: {
       big: { rows: ['rrRRrr'], x: 3, y: 8, ink: RIBBON },
       mini: { rows: ['rRRr'], x: 2, y: 5, ink: RIBBON },
@@ -387,6 +396,7 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 3: 'bommmmop' },
       feetApart: { 7: '.oo..oo.' },
     },
+    shiny: { o: 0x93c6ff, m: 0x4f7fc0 },
     accessory: {
       big: { rows: ['y.y.y', 'yyyyy'], x: 4, y: 0, ink: GOLD },
       mini: { rows: ['yy'], x: 3, y: 0, ink: GOLD },

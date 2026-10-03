@@ -2,9 +2,25 @@
   "name": "pets",
   "version": "0.1.0",
   "description": "A pixel pet that lives in a Claude Code pane: it wanders, reacts to your session, and grows as you work",
-  "author": { "name": "uppinote" },
+  "author": {
+    "name": "uppinote"
+  },
   "repository": "https://github.com/uppinote20/claude-pets",
   "license": "MIT",
-  "keywords": ["pet", "pixel-art", "pane", "mod", "fun"],
-  "types": "./types/index.d.ts"
+  "keywords": [
+    "pet",
+    "pixel-art",
+    "pane",
+    "mod",
+    "fun"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "luck": {
+      "type": "boolean",
+      "title": "Luck",
+      "description": "Gifts after finished turns, lucky pats and rare shiny pets",
+      "default": true
+    }
+  }
 }

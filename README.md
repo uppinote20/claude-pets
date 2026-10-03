@@ -63,6 +63,7 @@ Every species is its own pet, with its own name and its own level. Switching wit
 | Pat | 2 |
 | Finished turn | 5 |
 | 1,000 output tokens | 1 |
+| Gift, lucky pat | 5 to 100, by luck |
 
 Only output tokens count. Input and cache reads grow with how long the conversation is, not with how much work was done.
 
@@ -91,6 +92,14 @@ Every snack is 1 experience for the pet, and its best score is kept (`/pet statu
 Eight stages, each opened by clearing the one before (`/pet quest 3` replays one already open). Snacks are experience as in Pet Run, and `/pet status` counts the stages cleared.
 
 Stages are tile maps in [`hooks/quest.ts`](hooks/quest.ts), one character per 4×4 tile, so all eight take about 5 KB. A test searches every stage for a way through, so a stage that cannot be cleared fails the build.
+
+## Luck
+
+- **Gifts**: one finished turn in ten turns up a gift: mostly a cookie (+5 xp), sometimes a toy (+15) or a treasure (+40), now and then the jackpot (+100), and one gift in a hundred is a sparkle stone.
+- **Lucky pats**: one pat in ten is worth three times as much.
+- **Shiny pets**: a species met for the first time is a shiny one time in 32, in colors of its own (`✦` beside its name in the stats). A sparkle stone makes the pet that is out shiny; a second one is a jackpot.
+
+Turn it off with the plugin's `luck` setting (`/config`).
 
 ## Sizes
 

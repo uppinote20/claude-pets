@@ -2,6 +2,7 @@
  * Drives the plugin through its hooks: mocked clock and store, mounted Pane.
  * @handbook 5.1-plugin-test-harness
  * @handbook 5.2-ci-release-gates
+ * @covers hooks/luck.ts
  * @covers hooks/quest.ts
  * @covers hooks/register.tsx
  * @covers hooks/run.ts
@@ -10,6 +11,7 @@
  */
 import { expect, mock, test } from 'claude-code/testing'
 
+import { giftOf, worthOf } from '../hooks/luck'
 import { QUEST_ROWS, STAGES, advanceQuest, jumpQuest, newQuest } from '../hooks/quest'
 import type { Quest } from '../hooks/quest'
 import { advance, jump, newRun, scoreOf } from '../hooks/run'
@@ -26,7 +28,7 @@ const PROPS = {
 } as const
 const PANE = { plugin: 'pets', component: 'Pane', requestId: 'pets', props: PROPS } as const
 
-test('the pet paces, takes a pat, a name and a species, and leaves when told', async ($, on) => {
+test('the pet paces, takes a pat, a name and a species, and leaves when told', { options: { luck: false } }, async ($, on) => {
   const clock = mock.clock(on, { now: 0 })
   // The 0.1.0 shape, one pet's fields beside `species`: 22 xp of the 25 that level 2 takes.
   // `turns` is not a number and reads as 0.
@@ -149,7 +151,7 @@ test('a wide pane shows the stats beside the yard, the dock under it, a narrow o
   }
 })
 
-test('/pet says why when no surface places the pane', async ($, on) => {
+test('/pet says why when no surface places the pane', { options: { luck: false } }, async ($, on) => {
   const reason = 'no attached surface places panes'
   on('ui.open', async () => ({ value: { isPlaced: false as const, reason } }))
   on('command.register', async () => ({ value: { command: 'pet' } }))
@@ -206,7 +208,7 @@ test('every sprite row is as wide as its sprite, and every mark has a color', as
   }
 })
 
-test('a pet grows up at Lv 15 and wears its accessory, and is a star at Lv 40', async ($, on) => {
+test('a pet grows up at Lv 15 and wears its accessory, and is a star at Lv 40', { options: { luck: false } }, async ($, on) => {
   // 4,899 xp: one short of Lv 15.
   mock.store(on, { profile: { species: 'cat', pets: { cat: { name: '초코', tools: 4899 } } } })
   const toasts: string[] = []
@@ -264,7 +266,7 @@ test('Pet Run: a jump starts it, a snack touched is eaten, a bug touched ends it
   expect(jump(hit)).toBe(hit)
 })
 
-test('/pet play opens Pet Run, j jumps, the course repaints in place, and the best run is kept', async ($, on) => {
+test('/pet play opens Pet Run, j jumps, the course repaints in place, and the best run is kept', { options: { luck: false } }, async ($, on) => {
   const clock = mock.clock(on, { now: 0 })
   mock.store(on, { profile: { species: 'cat', pets: { cat: { name: '초코' } } } })
   const opened: unknown[] = []
@@ -533,7 +535,7 @@ test('/pet quest during a stage keeps its snacks before starting it again', asyn
   await game.unmount()
 })
 
-test('/pet choose during a stage gives its snacks to the pet that played it', async ($, on) => {
+test('/pet choose during a stage gives its snacks to the pet that played it', { options: { luck: false } }, async ($, on) => {
   const { run, game } = await questWithSnacks($, on)
 
   expect(await run('choose chick')).toBe('The chick is out.')
@@ -541,4 +543,97 @@ test('/pet choose during a stage gives its snacks to the pet that played it', as
   expect(await run('choose cat')).toBe('초코 is out.')
   expect(await run('status')).toMatch(/· [1-9]\d* snacks/)
   await game.unmount()
+})
+
+test('gifts are mostly small, sometimes a treasure, rarely the sparkle stone', () => {
+  expect([0, 0.59, 0.6, 0.85, 0.95, 0.99].map(r => giftOf(r))).toEqual([
+    { kind: 'xp', name: 'a cookie', xp: 5 },
+    { kind: 'xp', name: 'a cookie', xp: 5 },
+    { kind: 'xp', name: 'a toy', xp: 15 },
+    { kind: 'xp', name: 'a treasure', xp: 40 },
+    { kind: 'xp', name: 'the jackpot', xp: 100 },
+    { kind: 'stone' },
+  ])
+  expect(worthOf({ kind: 'stone' }, false)).toEqual({ xp: 0, makesShiny: true })
+  expect(worthOf({ kind: 'stone' }, true)).toEqual({ xp: 100, makesShiny: false })
+})
+
+test('with luck, finished turns turn up gifts that add experience', async ($, on) => {
+  const kept = new Map<string, unknown>([['profile', { species: 'cat', pets: { cat: { name: '초코' } } }]])
+  on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', async (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  const toasts: string[] = []
+  on('ui.toast', async (_, e) => {
+    toasts.push(e.text)
+
+    return { value: undefined }
+  })
+  on('turn.complete', async () => ({ text: '' }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  // At one in ten, three hundred turns all coming up empty is a one in 10^13 chance.
+  const turn = { answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as const
+  for (let i = 0; i < 300; i += 1) {
+    await $.turn.complete(turn)
+  }
+  const cat = (kept.get('profile') as { pets: { cat: { gifts: number; bonus: number; shiny: boolean } } }).pets.cat
+  expect(cat.gifts).toBeGreaterThan(0)
+  expect(cat.bonus > 0 || cat.shiny).toBe(true)
+  expect(toasts.some(text => /^초코 found /.test(text))).toBe(true)
+})
+
+test('the very first cat is met when the session starts, so its roll at being shiny happens then', { options: { luck: false } }, async ($, on) => {
+  const kept = new Map<string, unknown>()
+  on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', async (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  // Kept at once (luck off here, so not shiny): a pat or a turn later no longer counts as meeting it.
+  expect(kept.get('profile')).toMatchObject({ species: 'cat', pets: { cat: { shiny: false } } })
+})
+
+test('a cat already kept is not rolled again when a session starts', async ($, on) => {
+  const kept = new Map<string, unknown>([['profile', { species: 'cat', pets: { cat: { name: '초코' } } }]])
+  on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', async (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  // Luck is on, and still nothing is written: only a pet never met is rolled.
+  expect(kept.get('profile')).toEqual({ species: 'cat', pets: { cat: { name: '초코' } } })
+})
+
+test('a shiny pet is drawn in its shiny colors and says so', async ($, on) => {
+  mock.store(on, { profile: { species: 'slime', pets: { slime: { name: '말랑', shiny: true } } } })
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const card = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const source = (await card.find({ type: 'Svg' }))?.props.source
+  expect(source).toContain('#ffb8dc')
+  expect(source).not.toContain('#9fe0a8')
+  expect((await card.find({ type: 'Svg' }))?.props.alt).toMatch(/^말랑 the shiny slime/)
+  await card.unmount()
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal', props: { ...PROPS, bodyColumns: 100 } })
+  expect(await pane.find({ type: 'Text', text: 'SLIME ✦' })).toBeDefined()
+  await pane.unmount()
 })

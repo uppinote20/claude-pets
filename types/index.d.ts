@@ -6,7 +6,7 @@ export type Pet = {
   x: number
   dir: 1 | -1
   frame: number
-  mood: 'walk' | 'sleep' | 'happy' | 'work' | 'love'
+  mood: 'walk' | 'sleep' | 'happy' | 'work' | 'love' | 'gift'
   hold: number
   idle: number
 }
@@ -25,6 +25,10 @@ export type PetStats = {
   best: number
   /** Pet Quest stages cleared, counted from the first. */
   cleared: number
+  /** Gifts found, the experience they and lucky pats brought, and whether it is a rare shiny. */
+  gifts: number
+  bonus: number
+  shiny: boolean
 }
 
 /** What the Pet Quest pane's text shows. */
