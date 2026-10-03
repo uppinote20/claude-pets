@@ -465,7 +465,7 @@ async function growTallied($: EngineInterface, change: (stats: PetStats) => PetS
     return change(tallied)
   })
   if (reformed !== '') {
-    $.ui.toast(`${calledOf(now)} took after you: a ${reformed} ${speciesOf(now).label} now.`)
+    await $.ui.toast(`${calledOf(now)} took after you: a ${reformed} ${speciesOf(now).label} now.`)
   }
 
   return now
@@ -495,7 +495,7 @@ function runCells(run: Run, who: PetProfile): string {
 async function keepRun($: EngineInterface, run: Run): Promise<PetProfile> {
   const score = scoreOf(run)
   const kept = await growTallied($, stats => ({ ...stats, snacks: stats.snacks + run.snacks, best: Math.max(stats.best, score) }), { gamer: run.snacks * XP_PER_SNACK })
-  shownLevel = announce($, kept, shownLevel)
+  await announce($, kept)
 
   return kept
 }
@@ -520,7 +520,7 @@ async function tickRun($: EngineInterface): Promise<void> {
   void $.ui.blit({ requestId: PLAY, key: 'run', cells: runCells(now, who) })
   if (now.phase === 'over') {
     await update($, runView, () => viewOf(now))
-    $.ui.toast(`${calledOf(who)} ran ${scoreOf(now)} and ate ${now.snacks} snacks.`)
+    await $.ui.toast(`${calledOf(who)} ran ${scoreOf(now)} and ate ${now.snacks} snacks.`)
     await keepRun($, now)
   } else if (isRemote || now.tick % 10 === 0) {
     await update($, runView, () => viewOf(now))
@@ -549,7 +549,7 @@ async function keepQuest($: EngineInterface, stage: Quest): Promise<PetProfile> 
     }),
     { gamer: stage.snacks * XP_PER_SNACK },
   )
-  shownLevel = announce($, kept, shownLevel)
+  await announce($, kept)
 
   return kept
 }
@@ -591,7 +591,7 @@ async function tickQuest($: EngineInterface): Promise<void> {
   void $.ui.blit({ requestId: QUEST, key: 'quest', cells: questCells(now, who) })
   if (now.phase !== 'running') {
     await update($, questView, () => questViewOf(now))
-    $.ui.toast(
+    await $.ui.toast(
       now.phase === 'clear'
         ? `Stage ${now.stage + 1} clear! ${calledOf(who)} ate ${now.snacks} snacks.`
         : `${calledOf(who)} will try stage ${now.stage + 1} again.`,
@@ -603,17 +603,20 @@ async function tickQuest($: EngineInterface): Promise<void> {
 }
 
 /**
- * Toasts a level reached since `shown`, the level last seen: growing up and starting to shine
- * say so. Resolves to the level now seen.
+ * Toasts a level reached since `shownLevel`, the level last seen: growing up and starting to shine
+ * say so. `shownLevel` moves before the toast is awaited, so a hook that runs meanwhile does not
+ * announce the same level again.
  */
-function announce($: EngineInterface, now: PetProfile, shown: number): number {
+async function announce($: EngineInterface, now: PetProfile): Promise<void> {
   const level = levelOf(statsOf(now))
+  const shown = shownLevel
+  shownLevel = level
 
   if (level > shown) {
     const stage = stageOf(level)
     const called = calledOf(now)
 
-    $.ui.toast(
+    await $.ui.toast(
       stage === stageOf(shown)
         ? `${called} reached Lv ${level}!`
         : stage === 'adult'
@@ -621,8 +624,6 @@ function announce($: EngineInterface, now: PetProfile, shown: number): number {
           : `${called} grew into a teen! (Lv ${level})`,
     )
   }
-
-  return level
 }
 
 export const register: Register = (on, options) => {
@@ -680,7 +681,7 @@ export const register: Register = (on, options) => {
         const isLucky = lucky(LUCKY_PAT_CHANCE)
         await update($, pet, one => act(one, 'love', 8))
         const now = await growTallied($, stats => ({ ...stats, pats: stats.pats + 1, bonus: stats.bonus + (isLucky ? XP_PER_PAT * 2 : 0) }), { sweetie: XP_PER_PAT })
-        shownLevel = announce($, now, shownLevel)
+        await announce($, now)
 
         return { text: `${called} is pleased.${isLucky ? ` Lucky pat! +${XP_PER_PAT * 3} xp` : ''}${await openPane($, now)}` }
       }
@@ -830,7 +831,7 @@ export const register: Register = (on, options) => {
 
     if (gift !== null) {
       await update($, pet, one => act(one, 'gift', 12))
-      $.ui.toast(
+      await $.ui.toast(
         worth.makesShiny
           ? `${calledOf(now)} found a sparkle stone and turned shiny!`
           : `${calledOf(now)} found ${gift.kind === 'xp' ? gift.name : 'another sparkle stone'}! +${worth.xp} xp`,
@@ -838,7 +839,7 @@ export const register: Register = (on, options) => {
     } else if (isMain) {
       await update($, pet, one => act(one, 'happy', 10))
     }
-    shownLevel = announce($, now, shownLevel)
+    await announce($, now)
 
     return next(e)
   })
