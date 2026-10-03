@@ -70,6 +70,13 @@ function calledOf(who: PetProfile): string {
   return name === '' ? `The ${speciesOf(who).label}` : name
 }
 
+/** `초코 the cat`, or `The cat` while it has no name. */
+function titleOf(who: PetProfile): string {
+  const { name } = statsOf(who)
+
+  return name === '' ? `The ${speciesOf(who).label}` : `${name} the ${speciesOf(who).label}`
+}
+
 /**
  * A tool call is 1, a pat 2, a finished turn 5, and every thousand output tokens 1.
  * Output only: input and cache reads grow with the conversation's length, not with the work done.
@@ -147,7 +154,7 @@ function statusOf(who: PetProfile): string {
     .map(([kind, other]) => `${other.name === '' ? kind : `${other.name} the ${kind}`} Lv ${levelOf(other)}`)
 
   return [
-    `${calledOf(who)} the ${speciesOf(who).label} · Lv ${level} · ${xpOf(stats)} xp (next at ${XP_CURVE * level * level})`,
+    `${titleOf(who)} · Lv ${level} · ${xpOf(stats)} xp (next at ${XP_CURVE * level * level})`,
     `${stats.pats} pats, ${stats.turns} turns, ${stats.tools} tool calls, ${compact(stats.tokens)} output tokens`,
     ...(others.length === 0 ? [] : [`Also: ${others.join(', ')}`]),
   ].join(' · ')
@@ -321,8 +328,14 @@ function toRuns(line: Cell[]): Run[] {
   return runs.map(({ fg, bg, ...run }) => run)
 }
 
-async function openPane($: EngineInterface): Promise<void> {
-  await $.ui.open({ id: PANE, title: TITLE, rows: PANE_ROWS })
+/**
+ * Opens the pane. Resolves to what the reply should add: nothing once drawn, else why it
+ * waits undrawn (a surface that places no panes), so `/pet` never claims a pet nobody can see.
+ */
+async function openPane($: EngineInterface): Promise<string> {
+  const opened = await $.ui.open({ id: PANE, title: TITLE, rows: PANE_ROWS })
+
+  return opened.isPlaced ? '' : ` The pane is not on screen: ${opened.reason}`
 }
 
 /**
@@ -364,15 +377,12 @@ export const register: Register = on => {
 
     switch (verb) {
       case '':
-        await openPane($)
-
-        return { text: `${called} is out.` }
+        return { text: `${called} is out.${await openPane($)}` }
       case 'pat': {
         await update($, pet, one => act(one, 'love', 8))
         await grow($, stats => ({ ...stats, pats: stats.pats + 1 }))
-        await openPane($)
 
-        return { text: `${called} is pleased.` }
+        return { text: `${called} is pleased.${await openPane($)}` }
       }
       case 'name': {
         const given = cleanName(rest.join(' '))
@@ -382,9 +392,8 @@ export const register: Register = on => {
         }
 
         await grow($, stats => ({ ...stats, name: given }))
-        await openPane($)
 
-        return { text: `${called} is now ${given}.` }
+        return { text: `${called} is now ${given}.${await openPane($)}` }
       }
       case 'choose': {
         const wanted = rest[0] ?? ''
@@ -396,9 +405,8 @@ export const register: Register = on => {
         await update($, profile, last => ({ ...last, species: wanted }))
         const now = await grow($, stats => stats)
         shownLevel = levelOf(statsOf(now))
-        await openPane($)
 
-        return { text: `${calledOf(now)} is out.` }
+        return { text: `${calledOf(now)} is out.${await openPane($)}` }
       }
       case 'status':
         return { text: statusOf(who) }
