@@ -154,6 +154,14 @@ const GROUND_TINT: Readonly<Record<(typeof SIDES)[number], number>> = {
   gamer: 0x8f7fd0,
 }
 
+/** Where the largest of `values` is, or -1 when it is shared: a tie singles nothing out. */
+export function topOf(values: readonly number[]): number {
+  const best = Math.max(...values)
+  const at = values.indexOf(best)
+
+  return values.indexOf(best, at + 1) === -1 ? at : -1
+}
+
 function blend(from: number, to: number, amount: number): number {
   const mix = (shift: number) => Math.round(((from >> shift) & 0xff) * (1 - amount) + ((to >> shift) & 0xff) * amount)
 
@@ -258,8 +266,8 @@ const BADGE = 6
 
 export type Pixels = (number | null)[][]
 
-/** What `paint` drew: the pixels, and where the sprite sits in them. */
-export type Scene = { pixels: Pixels; left: number; top: number; spriteWidth: number; ground: number }
+/** What `paint` drew: the pixels, where the sprite sits in them, and the shade its leaning gives the grass. */
+export type Scene = { pixels: Pixels; left: number; top: number; spriteWidth: number; ground: number; shade: (color: number) => number }
 
 export function lookOf(size: Size): Look {
   return LOOKS[size]
@@ -420,9 +428,9 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
 
   // Grass: a tufted top row over a deeper one, a pink and a yellow flower.
   const grassTop = height - look.ground
-  // The side it leans to most tints the grass, more the further it leans.
-  const leading = leaning.reduce((best, share, at) => (share > (leaning[best] ?? 0) ? at : best), 0)
-  const tint = Math.max(0, Math.min(0.6, ((leaning[leading] ?? 0) - 0.3) * 1.2))
+  // The side it leans to most tints the grass, more the further it leans; a tie tints nothing.
+  const leading = topOf(leaning)
+  const tint = leading < 0 ? 0 : Math.max(0, Math.min(0.6, ((leaning[leading] ?? 0) - 0.3) * 1.2))
   const shade = (color: number) => (tint > 0 ? blend(color, GROUND_TINT[SIDES[leading] ?? 'worker'], tint) : color)
   if (withGrass) {
     for (let x = 0; x < width; x += 1) {
@@ -505,7 +513,7 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
     stamp(SPARKLE, { s: PALETTE.sparkle, w: PALETTE.petal }, isLeft ? left - 3 : left + spriteWidth, isLeft ? top + 1 : top - 1)
   }
 
-  return { pixels, left, top, spriteWidth, ground: look.ground }
+  return { pixels, left, top, spriteWidth, ground: look.ground, shade }
 }
 
 export type Cell = { glyph: string; fg: number | null; bg: number | null }
@@ -604,9 +612,11 @@ export function toSvg(scene: Scene, size: Size, caption: Caption): string {
   // A rounded mound of grass with a scalloped top, three flowers, and the pet's shadow.
   const groundTop = band + (scene.pixels.length - scene.ground) * unit
   const bump = unit * 1.1
-  const mound: string[] = [`<rect x="${pad}" y="${groundTop}" width="${cols * unit}" height="${scene.ground * unit + unit}" rx="${unit}" fill="${CARD.grass}"/>`]
+  // The card draws its own grass, in the shade its leaning gives the pane's.
+  const grass = hex(scene.shade(Number.parseInt(CARD.grass.slice(1), 16)))
+  const mound: string[] = [`<rect x="${pad}" y="${groundTop}" width="${cols * unit}" height="${scene.ground * unit + unit}" rx="${unit}" fill="${grass}"/>`]
   for (let x = pad + bump; x < pad + cols * unit - bump / 2; x += bump * 2) {
-    mound.push(`<circle cx="${x}" cy="${groundTop + 1}" r="${bump}" fill="${CARD.grass}"/>`)
+    mound.push(`<circle cx="${x}" cy="${groundTop + 1}" r="${bump}" fill="${grass}"/>`)
   }
   const flower = (x: number, petal: string) =>
     `<circle cx="${x}" cy="${groundTop + unit * 0.6}" r="${unit * 0.7}" fill="${petal}"/><circle cx="${x}" cy="${groundTop + unit * 0.6}" r="${unit * 0.28}" fill="#ffd36e"/>`

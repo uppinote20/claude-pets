@@ -85,8 +85,6 @@ let isRemote = false
 // The level last seen for the pet that is out, so a level-up is announced once, whether it came
 // from a turn, a pat or a run.
 let shownLevel = 1
-// Pats and game snacks as of the last finished turn, by species: what a turn adds to the leaning.
-const seenAtTurn = new Map<string, { pats: number; snacks: number }>()
 // The `luck` setting, as register last read it: the rare form is luck too.
 let isLuckOn = true
 const FORMS: readonly string[] = ['worker', 'scholar', 'sweetie', 'gamer', 'curious', 'rare'] satisfies readonly Form[]
@@ -124,9 +122,8 @@ function dayNow(): string {
 }
 
 /**
- * Tallies what a turn brought into the day's count; when the day has changed, first moves the
- * leaning toward the day before and lets an adult follow it. Pats and game snacks count from
- * the last turn's totals.
+ * Tallies what something brought into the day's count; when the day has changed, first moves
+ * the leaning toward the day before and lets an adult follow it.
  */
 function tally(stats: PetStats, brought: Readonly<Record<Side, number>>, today: string): PetStats {
   const isNewDay = stats.day !== '' && stats.day !== today
@@ -436,6 +433,26 @@ async function grow($: EngineInterface, change: (stats: PetStats) => PetStats): 
   return now
 }
 
+/**
+ * Grows the pet that is out and tallies what the change brought into today's leaning, as it is
+ * kept: pats, game snacks and turns each count the moment they are saved, so none is missed
+ * between turns or sessions. An adult that follows a new day's leaning says so.
+ */
+async function growTallied($: EngineInterface, change: (stats: PetStats) => PetStats, brought: Partial<Record<Side, number>>): Promise<PetProfile> {
+  let reformed = ''
+  const now = await grow($, stats => {
+    const tallied = tally(stats, { worker: 0, scholar: 0, sweetie: 0, gamer: 0, ...brought }, dayNow())
+    reformed = tallied.form !== stats.form ? tallied.form : ''
+
+    return change(tallied)
+  })
+  if (reformed !== '') {
+    $.ui.toast(`${calledOf(now)} took after you: a ${reformed} ${speciesOf(now).label} now.`)
+  }
+
+  return now
+}
+
 /** The pet's own tick: a step by its nature. */
 async function tickPet($: EngineInterface): Promise<void> {
   const nature = natureOf(statsOf(await read($, profile)))
@@ -459,7 +476,7 @@ function runCells(run: Run, who: PetProfile): string {
  */
 async function keepRun($: EngineInterface, run: Run): Promise<PetProfile> {
   const score = scoreOf(run)
-  const kept = await grow($, stats => ({ ...stats, snacks: stats.snacks + run.snacks, best: Math.max(stats.best, score) }))
+  const kept = await growTallied($, stats => ({ ...stats, snacks: stats.snacks + run.snacks, best: Math.max(stats.best, score) }), { gamer: run.snacks * XP_PER_SNACK })
   shownLevel = announce($, kept, shownLevel)
 
   return kept
@@ -505,11 +522,15 @@ function questCells(stage: Quest, who: PetProfile): string {
  * the snacks reach is announced like any other.
  */
 async function keepQuest($: EngineInterface, stage: Quest): Promise<PetProfile> {
-  const kept = await grow($, stats => ({
-    ...stats,
-    snacks: stats.snacks + stage.snacks,
-    cleared: stage.phase === 'clear' ? Math.max(stats.cleared, stage.stage + 1) : stats.cleared,
-  }))
+  const kept = await growTallied(
+    $,
+    stats => ({
+      ...stats,
+      snacks: stats.snacks + stage.snacks,
+      cleared: stage.phase === 'clear' ? Math.max(stats.cleared, stage.stage + 1) : stats.cleared,
+    }),
+    { gamer: stage.snacks * XP_PER_SNACK },
+  )
   shownLevel = announce($, kept, shownLevel)
 
   return kept
@@ -631,7 +652,7 @@ export const register: Register = (on, options) => {
       case 'pat': {
         const isLucky = lucky(LUCKY_PAT_CHANCE)
         await update($, pet, one => act(one, 'love', 8))
-        const now = await grow($, stats => ({ ...stats, pats: stats.pats + 1, bonus: stats.bonus + (isLucky ? XP_PER_PAT * 2 : 0) }))
+        const now = await growTallied($, stats => ({ ...stats, pats: stats.pats + 1, bonus: stats.bonus + (isLucky ? XP_PER_PAT * 2 : 0) }), { sweetie: XP_PER_PAT })
         shownLevel = announce($, now, shownLevel)
 
         return { text: `${called} is pleased.${isLucky ? ` Lucky pat! +${XP_PER_PAT * 3} xp` : ''}${await openPane($, now)}` }
@@ -760,36 +781,25 @@ export const register: Register = (on, options) => {
     const gift = isMain && lucky(GIFT_CHANCE) ? giftOf(Math.random()) : null
     const part = daypartNow()
     let worth = { xp: 0, makesShiny: false }
-    let reformed = ''
-    const { species } = await read($, profile)
-    const now = await grow($, stats => {
-      worth = gift === null ? worth : worthOf(gift, stats.shiny)
-      // The turn adds to the day's tally; a new day first moves the leaning, and an adult may follow.
-      const seen = seenAtTurn.get(species) ?? { pats: stats.pats, snacks: stats.snacks }
-      const tallied = tally(
-        stats,
-        {
-          worker: tools,
-          scholar: (isMain ? 5 : 0) + tokens / 1000,
-          sweetie: (stats.pats - seen.pats) * 2,
-          gamer: stats.snacks - seen.snacks,
-        },
-        dayNow(),
-      )
-      seenAtTurn.set(species, { pats: stats.pats, snacks: stats.snacks })
-      reformed = tallied.form !== stats.form ? tallied.form : ''
+    // The turn adds its tools and its own work to the day's tally (pats and snacks count as they are kept).
+    const now = await growTallied(
+      $,
+      stats => {
+        worth = gift === null ? worth : worthOf(gift, stats.shiny)
 
-      return {
-        ...tallied,
-        tools: stats.tools + tools,
-        turns: stats.turns + (isMain ? 1 : 0),
-        tokens: stats.tokens + tokens,
-        gifts: stats.gifts + (gift === null ? 0 : 1),
-        bonus: stats.bonus + worth.xp,
-        shiny: stats.shiny || worth.makesShiny,
-        hours: isMain ? stats.hours.map((count, at) => (DAYPARTS[at] === part ? count + 1 : count)) : stats.hours,
-      }
-    })
+        return {
+          ...stats,
+          tools: stats.tools + tools,
+          turns: stats.turns + (isMain ? 1 : 0),
+          tokens: stats.tokens + tokens,
+          gifts: stats.gifts + (gift === null ? 0 : 1),
+          bonus: stats.bonus + worth.xp,
+          shiny: stats.shiny || worth.makesShiny,
+          hours: isMain ? stats.hours.map((count, at) => (DAYPARTS[at] === part ? count + 1 : count)) : stats.hours,
+        }
+      },
+      { worker: tools, scholar: (isMain ? XP_PER_TURN : 0) + tokens / TOKENS_PER_XP },
+    )
 
     if (gift !== null) {
       await update($, pet, one => act(one, 'gift', 12))
@@ -802,9 +812,6 @@ export const register: Register = (on, options) => {
       await update($, pet, one => act(one, 'happy', 10))
     }
     shownLevel = announce($, now, shownLevel)
-    if (reformed !== '') {
-      $.ui.toast(`${calledOf(now)} took after you: a ${reformed} ${speciesOf(now).label} now.`)
-    }
 
     return next(e)
   })

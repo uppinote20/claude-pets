@@ -852,3 +852,43 @@ test('the leaning moves once a day, and an adult whose leaning has moved on take
   expect(cat().leaning).toEqual(leaning)
   expect(cat().brought).toEqual([0, 10, 0, 0])
 })
+
+test('a pat counts toward the day the moment it is kept, before any turn and only once', { options: { luck: false } }, async ($, on) => {
+  const clock = mock.clock(on, { now: Date.UTC(2026, 9, 2, 12, 0) })
+  const kept = new Map<string, unknown>([['profile', { species: 'cat', pets: { cat: { name: '초코', day: '2026-10-02', brought: [0, 0, 0, 0] } } }]])
+  on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', async (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  on('ui.open', async () => ({ value: { isPlaced: true as const } }))
+  on('turn.complete', async () => ({ text: '' }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await clock.advance(600)
+  const brought = () => (kept.get('profile') as { pets: { cat: { brought: number[] } } }).pets.cat.brought
+
+  // The first thing this session does is a pat: it is the sweetie side's, at once.
+  await $.command.run({ command: 'pet', args: 'pat', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })
+  expect(brought()).toEqual([0, 0, 2, 0])
+
+  // A turn then adds its own work, and does not count the pat again.
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' })
+  expect(brought()).toEqual([0, 5, 2, 0])
+})
+
+test('the card grass takes the shade of the leaning, as the pane grass does', { options: { luck: false } }, async ($, on) => {
+  // Known (well past 60 xp) and all for the worker: the grass leans its way.
+  mock.store(on, { profile: { species: 'cat', pets: { cat: { name: '초코', tools: 400, leaning: [1, 0, 0, 0] } } } })
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const card = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const source = (await card.find({ type: 'Svg' }))?.props.source ?? ''
+  // The plain green of a pet that leans nowhere is gone from the mound.
+  expect(source).not.toContain('fill="#b5dcae"')
+  await card.unmount()
+})

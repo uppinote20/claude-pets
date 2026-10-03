@@ -6,7 +6,7 @@
  * @tested tests/pet.test.ts
  */
 import type { PetStats } from '../types'
-import { SIDES } from './scene'
+import { SIDES, topOf } from './scene'
 import type { Side } from './scene'
 
 /** `curious` until it knows you, or while no one side of you stands out. */
@@ -94,14 +94,6 @@ export function driftLeaning(leaning: readonly number[], brought: Readonly<Recor
 /** Whether it has seen enough of you for a nature to show. */
 export function isKnown(stats: PetStats): boolean {
   return Object.values(sidesOf(stats)).reduce((sum, weight) => sum + weight, 0) >= KNOWN_AFTER
-}
-
-/** Where the largest of `values` is, or -1 when it is shared: a tie singles nothing out. */
-function topOf(values: readonly number[]): number {
-  const best = Math.max(...values)
-  const at = values.indexOf(best)
-
-  return values.indexOf(best, at + 1) === -1 ? at : -1
 }
 
 /** Its nature now: the side its leaning favors, once it knows you and one side stands out. */
