@@ -30,7 +30,7 @@ const SNACK_POINTS = 10
 const STOMP_POINTS = 20
 
 /**
- * `.` sky, `#` ground, `=` brick, `g` a gift box holding a snack, `T` a tree stump,
+ * `.` sky, `#` ground, `=` brick, `g` a gift box holding a snack (`u` once it is opened), `T` a tree stump,
  * `c` a snack, `b` a bug (it walks, turning at walls and edges), `F` the goal column
  * (the snack bowl stands at its foot).
  */
@@ -304,7 +304,7 @@ export function advanceQuest(quest: Quest): Quest {
     return isBlocked ? { ...foe, dir: (foe.dir === 1 ? -1 : 1) as Foe['dir'] } : { ...foe, x: step }
   })
   const pet = { x: x + BOX.x, y: y + BOX.y, w: BOX.w, h: BOX.h }
-  for (const foe of foes) {
+  for (const [i, foe] of foes.entries()) {
     if (!foe.isAlive) {
       continue
     }
@@ -314,7 +314,8 @@ export function advanceQuest(quest: Quest): Quest {
     }
     // A stomp: falling, with its feet above the bug's back as the tick began.
     if (rise < 0 && quest.y + BOX.y + BOX.h <= foe.y + 2) {
-      foe.isAlive = false
+      // A copy: the foe may still be the one the last tick's quest holds.
+      foes[i] = { ...foe, isAlive: false }
       stomps += 1
       rise = BOUNCE
       isGrounded = false

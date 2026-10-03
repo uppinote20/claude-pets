@@ -309,7 +309,10 @@ test('/pet play opens Pet Run, j jumps, the course repaints in place, and the be
   // Left alone, the first bug ends it.
   await clock.advance(50 * 400)
   expect(await game.find({ type: 'Text', text: /ouch! r to run again/ })).toBeDefined()
-  expect(await run('status')).toMatch(/Pet Run best \d+, 0 snacks/)
+  const status = await run('status')
+  expect(status).toMatch(/Pet Run best \d+/)
+  // No snack was eaten, so none is counted.
+  expect(status).not.toMatch(/snacks/)
 
   await game.press({ key: 'restart' })
   expect(await game.find({ type: 'Text', text: /press j to start/ })).toBeDefined()
@@ -485,4 +488,56 @@ test('/pet quest opens the next open stage, keeps later ones shut, and j starts 
     expect(await card.find({ type: 'Button', key: 'jump' })).toBeDefined()
     await card.unmount()
   }
+})
+
+/** Opens stage 1 and plays it, jumping every five ticks, until snacks are eaten and it still runs. */
+async function questWithSnacks($: Parameters<Parameters<typeof test>[1]>[0], on: Parameters<Parameters<typeof test>[1]>[1]) {
+  const clock = mock.clock(on, { now: 0 })
+  mock.store(on, { profile: { species: 'cat', pets: { cat: { name: '초코' } } } })
+  on('ui.open', async () => ({ value: { isPlaced: true as const } }))
+  on('ui.blit', async () => ({ value: {} }))
+  on('ui.toast', async () => ({ value: undefined }))
+  on('session.surfaces', async () => ({ value: ['terminal' as const] }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const run = async (args: string) =>
+    (
+      await $.command.run({
+        command: 'pet',
+        args,
+        origin: { kind: 'composer' },
+        presentation: { isFullscreen: false, columns: 80 },
+      })
+    ).text
+
+  await run('quest')
+  const game = await $.ui.mount({ ...PANE, requestId: 'pets-quest', surface: 'terminal' })
+  // Stage 1 jumped every five ticks eats its first snack by tick 46 and is still under way at 80.
+  for (let beat = 0; beat < 16; beat += 1) {
+    await game.press({ key: 'jump' })
+    await clock.advance(50 * 5)
+  }
+  expect(await run('status')).not.toMatch(/snacks/)
+
+  return { run, game }
+}
+
+test('/pet quest during a stage keeps its snacks before starting it again', async ($, on) => {
+  const { run, game } = await questWithSnacks($, on)
+
+  await run('quest')
+  expect(await run('status')).toMatch(/· [1-9]\d* snacks/)
+  expect(await game.find({ type: 'Text', text: /press j to start/ })).toBeDefined()
+  await game.unmount()
+})
+
+test('/pet choose during a stage gives its snacks to the pet that played it', async ($, on) => {
+  const { run, game } = await questWithSnacks($, on)
+
+  expect(await run('choose chick')).toBe('The chick is out.')
+  expect(await run('status')).not.toMatch(/snacks/)
+  expect(await run('choose cat')).toBe('초코 is out.')
+  expect(await run('status')).toMatch(/· [1-9]\d* snacks/)
+  await game.unmount()
 })

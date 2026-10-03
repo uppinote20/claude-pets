@@ -211,8 +211,10 @@ function statusOf(who: PetProfile): string {
   return [
     `${titleOf(who)} · Lv ${level} · ${xpOf(stats)} xp (next at ${XP_CURVE * level * level})`,
     `${stats.pats} pats, ${stats.turns} turns, ${stats.tools} tool calls, ${compact(stats.tokens)} output tokens`,
-    ...(stats.best === 0 ? [] : [`Pet Run best ${stats.best}, ${stats.snacks} snacks`]),
+    ...(stats.best === 0 ? [] : [`Pet Run best ${stats.best}`]),
     ...(stats.cleared === 0 ? [] : [`Pet Quest ${stats.cleared}/${STAGES.length} stages cleared`]),
+    // Snacks from both games, one count.
+    ...(stats.snacks === 0 ? [] : [`${stats.snacks} snacks`]),
     ...(others.length === 0 ? [] : [`Also: ${others.join(', ')}`]),
   ].join(' · ')
 }
@@ -369,34 +371,64 @@ function questCells(stage: Quest, who: PetProfile): string {
   return pack(toCells(paintQuest(stage, speciesOf(who), stageOf(levelOf(statsOf(who))))))
 }
 
-/** Keeps what a stage gave: its snacks feed the pet, and a cleared stage opens the next. */
+/**
+ * Keeps what a stage gave: its snacks feed the pet, a cleared stage opens the next, and a level
+ * the snacks reach is announced like any other.
+ */
 async function keepQuest($: EngineInterface, stage: Quest): Promise<PetProfile> {
-  return grow($, stats => ({
+  const kept = await grow($, stats => ({
     ...stats,
     snacks: stats.snacks + stage.snacks,
     cleared: stage.phase === 'clear' ? Math.max(stats.cleared, stage.stage + 1) : stats.cleared,
   }))
+  shownLevel = announce($, kept, shownLevel)
+
+  return kept
+}
+
+/**
+ * Keeps a run or a stage still going and sets it back to the start, before the pet that earned
+ * it stops being the one out.
+ */
+async function settleGames($: EngineInterface): Promise<void> {
+  const run = course
+  const stage = quest
+
+  if (run !== null && run.phase === 'running') {
+    course = newRun(run.width, Math.floor(Math.random() * 2 ** 31))
+    await update($, runView, () => viewOf(course ?? run))
+    await keepRun($, run)
+  }
+  if (stage !== null && stage.phase === 'running') {
+    quest = newQuest(stage.stage, stage.width)
+    await update($, questView, () => questViewOf(quest ?? stage))
+    await keepQuest($, stage)
+  }
 }
 
 /** One tick of Pet Quest, as `tickRun`: on, repainted in place, kept once it ends. */
 async function tickQuest($: EngineInterface): Promise<void> {
-  if (quest === null || quest.phase !== 'running') {
+  const stage = quest
+  if (stage === null || stage.phase !== 'running') {
     return
   }
   const who = await read($, profile)
-  const now = advanceQuest(quest)
+  // Closed or started over while the profile was read: that stage is no longer this one to move.
+  if (quest !== stage) {
+    return
+  }
+  const now = advanceQuest(stage)
   quest = now
 
   void $.ui.blit({ requestId: QUEST, key: 'quest', cells: questCells(now, who) })
   if (now.phase !== 'running') {
     await update($, questView, () => questViewOf(now))
-    const kept = await keepQuest($, now)
-
     $.ui.toast(
       now.phase === 'clear'
-        ? `Stage ${now.stage + 1} clear! ${calledOf(kept)} ate ${now.snacks} snacks.`
-        : `${calledOf(kept)} will try stage ${now.stage + 1} again.`,
+        ? `Stage ${now.stage + 1} clear! ${calledOf(who)} ate ${now.snacks} snacks.`
+        : `${calledOf(who)} will try stage ${now.stage + 1} again.`,
     )
+    await keepQuest($, now)
   } else if (isRemote || now.tick % 10 === 0) {
     await update($, questView, () => questViewOf(now))
   }
@@ -475,6 +507,8 @@ export const register: Register = on => {
           return { text: `Choose one of: ${Object.keys(SPECIES).join(', ')}` }
         }
 
+        // What a game in progress earned belongs to the pet that played it.
+        await settleGames($)
         await update($, profile, last => ({ ...last, species: wanted }))
         const now = await grow($, stats => stats)
         shownLevel = levelOf(statsOf(now))
@@ -525,12 +559,21 @@ export const register: Register = on => {
         if (!Number.isInteger(asked) || asked < 1 || asked > open + 1) {
           return { text: `Stages open: 1 to ${open + 1} of ${STAGES.length}.` }
         }
+        // A stage still going is kept before another takes its place, as closing the pane would.
+        const going = quest
+        questTicker?.cancel()
+        questTicker = null
         quest = newQuest(asked - 1, quest?.width ?? RUN_MIN)
+        if (going !== null && going.phase === 'running') {
+          await keepQuest($, going)
+        }
         isRemote = (await $.session.surfaces()).some(surface => surface !== 'terminal')
         await update($, questView, () => questViewOf(quest ?? newQuest(0, RUN_MIN)))
-        questTicker?.cancel()
-        questTicker = $.clock.every(QUEST_TICK_MS, () => void tickQuest($))
         const opened = await $.ui.open({ id: QUEST, title: QUEST_TITLE, rows: QUEST_HEIGHT / 2 + 2, focus: true, closeOnEscape: true })
+        // Only a placed pane can be closed, and closing is what stops the clock.
+        if (opened.isPlaced) {
+          questTicker = $.clock.every(QUEST_TICK_MS, () => void tickQuest($))
+        }
 
         return {
           text: opened.isPlaced
