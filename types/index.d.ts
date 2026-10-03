@@ -21,9 +21,13 @@ export type PetStats = {
   tokens: number
 }
 
-/** What is kept across sessions: which pet is out, and every pet met so far by species. */
+/** How tall the pane draws the pet: `small` is the 8×8 sprite, `medium` the 12×12 one. A stored size no longer offered reads as the default. */
+export type PetSize = 'small' | 'medium'
+
+/** What is kept across sessions: which pet is out, how big it is drawn, and every pet met so far by species. */
 export type PetProfile = {
   species: string
+  size: PetSize
   pets: Record<string, PetStats>
 }
 

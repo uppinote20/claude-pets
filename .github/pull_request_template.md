@@ -10,7 +10,7 @@
 
 - [ ] `claude plugin validate .claude-plugin/plugin.json` passes
 - [ ] `claude plugin test .` passes
-- [ ] Tried in a session (`claude --plugin-dir .`): `/pet`, `/pet pat`, `/pet choose`
+- [ ] Tried in a session (`claude --plugin-dir .`): `/pet`, `/pet pat`, `/pet size small|medium`
 - [ ] Checked on a remote surface (desktop / mobile) if the drawing changed
 - [ ] Ran `node scripts/sprites.mjs` if a sprite changed
 

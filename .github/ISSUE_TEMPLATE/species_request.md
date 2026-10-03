@@ -12,7 +12,7 @@ assignees: ''
 
 ## Sprite (optional)
 
-<!-- A 12×12 drawing, one character per pixel, facing left. See "Adding a species" in the README. -->
+<!-- A 12×12 drawing, one character per pixel, facing left. An 8×8 one for the small size is welcome too. See "Adding a species" in the README. -->
 
 ```
 ............

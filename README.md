@@ -16,7 +16,7 @@ A pixel pet that lives in a Claude Code pane. It wanders while you work, reacts 
   - jumps when a turn finishes
   - naps after about two minutes of quiet
   - tears up when a rate-limit window passes 80%
-- **Grows**: tool calls, finished turns, output tokens and pats add experience. The level shows beside its name and is kept across sessions.
+- **Grows**: tool calls, finished turns, output tokens and pats add experience. The level is kept across sessions. When the pane has room (above a wide prompt, or docked beside the transcript) a stats panel shows the level, the bar to the next one, and how many of each it has seen; otherwise the line above the pet shows the level.
 - **Is yours**: give it a name and pick its species.
 
 ## Install
@@ -40,6 +40,7 @@ claude --plugin-dir /path/to/claude-pets
 | `/pet pat` | Pat it |
 | `/pet name <name>` | Name it (up to 20 characters) |
 | `/pet choose <species>` | Bring out another pet: `cat`, `chick` |
+| `/pet size <size>` | How tall the pane is: `small` (6 rows) or `medium` (9, the default) |
 | `/pet status` | Level, experience and counts |
 | `/pet bye` | Close the pane |
 
@@ -60,21 +61,37 @@ Only output tokens count. Input and cache reads grow with how long the conversat
 
 A pet reaches level `n + 1` at `25 × n²` experience: level 2 at 25, level 5 at 400, level 10 at 2,025, level 50 at 60,025. Early levels come within an evening; later ones take longer and there is no cap.
 
+## Sizes
+
+`/pet size` picks how much room the pet takes, and it is kept across sessions:
+
+| Size | Sprite | Terminal rows |
+|------|--------|---------------|
+| `small` | 8×8 | 6 |
+| `medium` | 12×12 | 9 |
+
+The pane opens at that height. A height you drag the pane to yourself wins over it.
+
 ## Adding a species
 
-A species is a 12×12 sprite in [`hooks/species.ts`](hooks/species.ts), one character per pixel:
+A species is drawn twice in [`hooks/species.ts`](hooks/species.ts), one character per pixel: `big` at 12×12 and `mini` at 8×8 for the small size.
 
 ```ts
-rows: [
-  '..o......o..',
-  '.opo....opo.',
-  '.oooooooooo.',
-  // ...12 rows of 12 characters
-],
+big: {
+  rows: [
+    '..o......o..',
+    '.opo....opo.',
+    '.oooooooooo.',
+    // ...12 rows of 12 characters
+  ],
+  eyesShut: { 4: 'oooooooooooo', 5: 'okkkooookkko' },
+  tear: { 6: 'opbowppwoppo' },
+  feetApart: { 11: '.oo......oo.' },
+},
 ink: { o: 0xffd787, w: 0xfff3dc, p: 0xffafd7, k: 0x5f5f5f },
 ```
 
-`.` is empty; every other character needs a color in `ink`. Draw it facing left. Then supply the rows that replace the eyes (`eyesShut`), the cheek row (`tear`) and the feet (`feetApart`).
+`.` is empty; every other character needs a color in `ink`. Draw it facing left. Then supply, by row index, the rows that replace the eyes (`eyesShut`), the cheek row (`tear`) and the feet (`feetApart`).
 
 ## Development
 
@@ -91,7 +108,16 @@ node scripts/sprites.mjs
 
 Once Claude Code has loaded the plugin from this folder it lays its type declarations in `.claude-plugin/types/`, and `tsc -p .` type-checks the plugin.
 
-On the terminal the pet is one `Raster` element of half-block cells. Surfaces without `Raster` (desktop, VS Code, mobile) draw the same pixels as runs of colored text.
+On the terminal the pet is one `Raster` element of half-block cells. Surfaces without `Raster` (desktop, VS Code, mobile) draw the same pixels as an `Svg` card, with a name tag, a speech bubble and a grass mound. The drawing lives in [`hooks/scene.ts`](hooks/scene.ts), which has no `$`, so tests can draw exactly what the pane does.
+
+## On mobile
+
+The pet runs wherever Claude Code runs; the Claude mobile app is one more surface drawing the pane, so the plugin has to be loaded by the session the app is looking at:
+
+- **Remote Control**: install the plugin on your computer, run `claude remote-control` in the folder you work in, and open that session in the Claude Code app on your phone. Type `/pet` there.
+- **Claude Code on the web**: a cloud session loads the plugins its repository's `.claude/settings.json` enables (`extraKnownMarketplaces` and `enabledPlugins`), so add `pets@claude-pets` there and open that session in the app.
+
+The app has no `Raster`, so it draws the SVG card.
 
 ## License
 
