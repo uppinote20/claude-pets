@@ -9,12 +9,22 @@
  * @tested tests/pet.test.ts
  */
 import type { Pet } from '../types'
-import type { Species, Sprite } from './species'
+import type { Accessory, Species, Sprite } from './species'
 
 export type Size = 'small' | 'medium'
 
 export const SIZES: readonly Size[] = ['small', 'medium']
 export const DEFAULT_SIZE: Size = 'medium'
+
+/** How far a pet has grown: a baby as drawn, grown with its accessory, a star that twinkles too. */
+export type Stage = 'baby' | 'grown' | 'star'
+
+/** The levels each stage begins at. */
+export const STAGE_LEVELS = { grown: 15, star: 40 } as const
+
+export function stageOf(level: number): Stage {
+  return level >= STAGE_LEVELS.star ? 'star' : level >= STAGE_LEVELS.grown ? 'grown' : 'baby'
+}
 
 type Look = {
   sprite: 'mini' | 'big'
@@ -46,6 +56,7 @@ export const PALETTE = {
 } as const
 
 const HEART = ['hh.hh', 'hhhhh', '.hhh.', '..h..'] as const
+/** The happy sparkle, and a star's twinkle. */
 const SPARKLE = ['.s.', 'sws', '.s.'] as const
 /** Columns kept free beside the sprite for the heart or sparkle. */
 const BADGE = 6
@@ -105,11 +116,31 @@ export function spriteRows(one: Pet, sprite: Sprite, isSad: boolean): string[] {
   return one.dir === 1 ? rows.map(row => [...row].reverse().join('')) : rows
 }
 
+/** How the yard is painted beyond the pet and its size. */
+export type PaintOptions = {
+  /** Its tear when a rate limit is nearly used up. */
+  isSad?: boolean
+  /** The SVG card draws its own grass, so it asks for none. */
+  withGrass?: boolean
+  stage?: Stage
+}
+
+/** The accessory's rows and left edge for the way the pet faces: mirrored with it. */
+function worn(accessory: Accessory, spriteWidth: number, dir: Pet['dir']): { rows: string[]; x: number } {
+  if (dir !== 1) {
+    return { rows: [...accessory.rows], x: accessory.x }
+  }
+  const across = accessory.rows[0]?.length ?? 0
+
+  return { rows: accessory.rows.map(row => [...row].reverse().join('')), x: spriteWidth - accessory.x - across }
+}
+
 /**
- * The yard, `width` pixels across: the pet at step `one.x` of `steps` along it, its heart or sparkle,
- * and a strip of grass with two flowers and the pet's shadow.
+ * The yard, `width` pixels across: the pet at step `one.x` of `steps` along it, what it wears
+ * at its stage, its heart or sparkle, and a strip of grass with two flowers and its shadow.
  */
-export function paint(one: Pet, kind: Species, size: Size, isSad: boolean, width: number, steps: number, withGrass = true): Scene {
+export function paint(one: Pet, kind: Species, size: Size, width: number, steps: number, options: PaintOptions = {}): Scene {
+  const { isSad = false, withGrass = true, stage = 'baby' } = options
   const look = LOOKS[size]
   const sprite = spriteOf(kind, size)
   const height = sceneHeight(kind, size)
@@ -134,8 +165,7 @@ export function paint(one: Pet, kind: Species, size: Size, isSad: boolean, width
     })
   }
 
-  // Grass: a tufted top row over a deeper one, a pink and a yellow flower. The SVG card
-  // draws its own, so it asks for none.
+  // Grass: a tufted top row over a deeper one, a pink and a yellow flower.
   const grassTop = height - look.ground
   if (withGrass) {
     for (let x = 0; x < width; x += 1) {
@@ -160,6 +190,21 @@ export function paint(one: Pet, kind: Species, size: Size, isSad: boolean, width
     }
   }
   stamp(spriteRows(one, sprite, isSad), kind.ink, left, top)
+  if (stage !== 'baby') {
+    const accessory = kind.accessory[look.sprite]
+    const { rows, x } = worn(accessory, spriteWidth, one.dir)
+
+    stamp(rows, accessory.ink, left + x, top + accessory.y)
+  }
+  // A star twinkles beside its head every other tick, high then low, unless a heart or a
+  // sparkle already shows there. The head is on the side it faces; with no room there, at the
+  // yard's left edge, it takes the badge columns on the right.
+  if (stage === 'star' && (one.mood === 'walk' || one.mood === 'work' || one.mood === 'sleep') && one.frame % 2 === 0) {
+    const ahead = left - SPARKLE[0].length - 1
+    const x = one.dir === -1 && ahead >= 0 ? ahead : left + spriteWidth + 1
+
+    stamp(SPARKLE, { s: PALETTE.sparkle, w: PALETTE.petal }, x, one.frame % 4 === 0 ? top : top + 3)
+  }
 
   if (one.mood === 'love') {
     stamp(HEART, { h: PALETTE.heart }, left + spriteWidth + 1, Math.max(0, top - 1 + (one.frame % 2)))

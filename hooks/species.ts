@@ -19,13 +19,32 @@ export type Sprite = {
   feetApart: Readonly<Record<number, string>>
 }
 
+/**
+ * What a grown pet wears: pixels laid over the sprite (drawn facing left, `.` see-through),
+ * `x` and `y` from the sprite's top left, in colors of their own.
+ */
+export type Accessory = {
+  rows: readonly string[]
+  x: number
+  y: number
+  ink: Readonly<Record<string, number>>
+}
+
 export type Species = {
   label: string
   ink: Readonly<Record<string, number>>
   big: Sprite
   mini: Sprite
+  /** Worn from the grown stage on, at each sprite size. */
+  accessory: { big: Accessory; mini: Accessory }
   purr: string
 }
+
+const RIBBON = { r: 0xff6b8a, R: 0xd94f6e } as const
+const GOLD = { y: 0xffd447 } as const
+const BLOOM = { f: 0xffffff, Y: 0xffd447 } as const
+const SCARF = { s: 0x6fa8dc, S: 0x4f86bd } as const
+const LEAF = { g: 0x7cc576 } as const
 
 export const DEFAULT_SPECIES = 'cat'
 
@@ -67,6 +86,10 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 4: 'pbommoop' },
       feetApart: { 7: '.o....o.' },
     },
+    accessory: {
+      big: { rows: ['r...r', 'rrRrr', 'r...r'], x: 7, y: 0, ink: RIBBON },
+      mini: { rows: ['r.r', 'rRr'], x: 5, y: 0, ink: RIBBON },
+    },
     purr: 'purr',
   },
   chick: {
@@ -105,6 +128,10 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       eyesShut: { 3: '.oooooo.' },
       tear: { 4: '.boyyop.' },
       feetApart: { 7: '.y....y.' },
+    },
+    accessory: {
+      big: { rows: ['.f.', 'fYf', '.f.'], x: 7, y: 0, ink: BLOOM },
+      mini: { rows: ['.f.', 'fYf'], x: 5, y: 0, ink: BLOOM },
     },
     purr: 'cheep',
   },
@@ -145,6 +172,10 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 3: 'dbcmmcpd' },
       feetApart: { 7: '.o....o.' },
     },
+    accessory: {
+      big: { rows: ['ssssssss', '.sS.....'], x: 2, y: 8, ink: SCARF },
+      mini: { rows: ['ssssss'], x: 1, y: 4, ink: SCARF },
+    },
     purr: 'woof',
   },
   slime: {
@@ -183,6 +214,10 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       eyesShut: { 4: 'oooooooo' },
       tear: { 5: 'pbommoop' },
       feetApart: { 7: 'dddddddd' },
+    },
+    accessory: {
+      big: { rows: ['y.y.y', 'yyyyy'], x: 4, y: 0, ink: GOLD },
+      mini: { rows: ['y..y', 'yyyy'], x: 2, y: 0, ink: GOLD },
     },
     purr: 'blub',
   },
@@ -223,6 +258,10 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 4: 'pbommoop' },
       feetApart: { 7: '.o....o.' },
     },
+    accessory: {
+      big: { rows: ['r...r', 'rrRrr', 'r...r'], x: 4, y: 1, ink: RIBBON },
+      mini: { rows: ['rRr'], x: 3, y: 2, ink: RIBBON },
+    },
     purr: 'boop',
   },
   hamster: {
@@ -261,6 +300,10 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       eyesShut: { 2: 'oooooooo' },
       tear: { 3: 'bccmmccp' },
       feetApart: { 7: '.p....p.' },
+    },
+    accessory: {
+      big: { rows: ['..gg', '.gg.', 'gg..'], x: 8, y: 0, ink: LEAF },
+      mini: { rows: ['.g', 'g.'], x: 6, y: 0, ink: LEAF },
     },
     purr: 'squeak',
   },
@@ -301,6 +344,10 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       tear: { 4: 'obcyycpo' },
       feetApart: { 7: '.y....y.' },
     },
+    accessory: {
+      big: { rows: ['rrRRrr'], x: 3, y: 8, ink: RIBBON },
+      mini: { rows: ['rRRr'], x: 2, y: 5, ink: RIBBON },
+    },
     purr: 'peep',
   },
   frog: {
@@ -339,6 +386,10 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       eyesShut: { 1: '.oo..oo.' },
       tear: { 3: 'bommmmop' },
       feetApart: { 7: '.oo..oo.' },
+    },
+    accessory: {
+      big: { rows: ['y.y.y', 'yyyyy'], x: 4, y: 0, ink: GOLD },
+      mini: { rows: ['yy'], x: 3, y: 0, ink: GOLD },
     },
     purr: 'ribbit',
   },

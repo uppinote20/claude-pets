@@ -8,6 +8,7 @@
  */
 import { expect, mock, test } from 'claude-code/testing'
 
+import { stageOf } from '../hooks/scene'
 import { SPECIES } from '../hooks/species'
 
 const PROPS = {
@@ -90,7 +91,7 @@ test('the pet paces, takes a pat, a name and a species, and leaves when told', a
   const turn = { answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' } as const
   const usage = { input_tokens: 9, cache_read_input_tokens: 900_000, cache_creation_input_tokens: 9, model: 'm' }
   await $.turn.complete({ ...turn, usage: { ...usage, output_tokens: 21_500 } })
-  expect(toasts).toEqual(['The chick reached Lv 2!'])
+  expect(toasts).toEqual(['초코 reached Lv 2!', 'The chick reached Lv 2!'])
   // A subagent's turn adds its tokens but is no turn of the conversation's.
   await $.turn.complete({ ...turn, agentId: 'a1', usage: { ...usage, output_tokens: 500 } })
   expect(await run('status')).toBe(
@@ -198,4 +199,37 @@ test('every sprite row is as wide as its sprite, and every mark has a color', as
       }
     }
   }
+})
+
+test('a pet grows up at Lv 15 and wears its accessory, and is a star at Lv 40', async ($, on) => {
+  // 4,899 xp: one short of Lv 15.
+  mock.store(on, { profile: { species: 'cat', pets: { cat: { name: '초코', tools: 4899 } } } })
+  const toasts: string[] = []
+  on('ui.toast', async (_, e) => {
+    toasts.push(e.text)
+
+    return { value: undefined }
+  })
+  on('turn.complete', async () => ({ text: '' }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal', props: { ...PROPS, bodyColumns: 100 } })
+  const card = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const ribbon = '#ff6b8a'
+  expect((await card.find({ type: 'Svg' }))?.props.source).not.toContain(ribbon)
+  expect(await pane.find({ type: 'Text', text: 'CAT' })).toBeDefined()
+
+  const turn = { answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' } as const
+  await $.turn.complete(turn)
+  expect(toasts).toEqual(['초코 grew up! (Lv 15)'])
+  expect((await card.find({ type: 'Svg' }))?.props.source).toContain(ribbon)
+  expect(await pane.find({ type: 'Text', text: 'CAT · GROWN' })).toBeDefined()
+  await pane.unmount()
+  await card.unmount()
+})
+
+test('stages begin at Lv 15 and Lv 40', () => {
+  expect([1, 14, 15, 39, 40, 99].map(stageOf)).toEqual(['baby', 'baby', 'grown', 'grown', 'star', 'star'])
 })

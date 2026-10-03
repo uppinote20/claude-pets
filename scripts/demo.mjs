@@ -33,7 +33,7 @@ function framesOf(kind) {
       const dir = isWalking && (x === 0 || x === STEPS) ? -pet.dir : pet.dir
 
       pet = { ...pet, x, dir, mood, frame: pet.frame + 1 }
-      frames.push(paint(pet, kind, 'medium', false, WIDTH, STEPS).pixels)
+      frames.push(paint(pet, kind, 'medium', WIDTH, STEPS).pixels)
     }
   }
 
