@@ -56,8 +56,8 @@ export const PALETTE = {
 } as const
 
 const HEART = ['hh.hh', 'hhhhh', '.hhh.', '..h..'] as const
+/** The happy sparkle, and a star's twinkle. */
 const SPARKLE = ['.s.', 'sws', '.s.'] as const
-const TWINKLE = ['.s.', 'sws', '.s.'] as const
 /** Columns kept free beside the sprite for the heart or sparkle. */
 const BADGE = 6
 
@@ -197,9 +197,13 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
     stamp(rows, accessory.ink, left + x, top + accessory.y)
   }
   // A star twinkles beside its head every other tick, high then low, unless a heart or a
-  // sparkle already shows there.
+  // sparkle already shows there. The head is on the side it faces; with no room there, at the
+  // yard's left edge, it takes the badge columns on the right.
   if (stage === 'star' && (one.mood === 'walk' || one.mood === 'work' || one.mood === 'sleep') && one.frame % 2 === 0) {
-    stamp(TWINKLE, { s: PALETTE.sparkle, w: PALETTE.petal }, left + spriteWidth + 1, one.frame % 4 === 0 ? top : top + 3)
+    const ahead = left - SPARKLE[0].length - 1
+    const x = one.dir === -1 && ahead >= 0 ? ahead : left + spriteWidth + 1
+
+    stamp(SPARKLE, { s: PALETTE.sparkle, w: PALETTE.petal }, x, one.frame % 4 === 0 ? top : top + 3)
   }
 
   if (one.mood === 'love') {
