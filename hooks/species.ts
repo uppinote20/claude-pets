@@ -30,6 +30,12 @@ export type Accessory = {
   ink: Readonly<Record<string, number>>
 }
 
+/**
+ * A sprite's head, facing left: `top` the row its crown starts on between any ears, `eye`
+ * the eyes' row, `left` and `right` its widest columns there.
+ */
+export type Head = { top: number; eye: number; left: number; right: number }
+
 export type Species = {
   label: string
   ink: Readonly<Record<string, number>>
@@ -37,8 +43,10 @@ export type Species = {
   mini: Sprite
   /** The rare shiny's colors, laid over `ink`. */
   shiny: Readonly<Record<string, number>>
-  /** Worn from the grown stage on, at each sprite size. */
-  accessory: { big: Accessory; mini: Accessory }
+  /** Worn from the grown stage on, at each sprite size; `head` ones give way to a cap or a headset. */
+  accessory: { slot: 'head' | 'body'; big: Accessory; mini: Accessory }
+  /** Where its head is in each sprite, for what its nature puts on it. */
+  head: { big: Head; mini: Head }
   purr: string
 }
 
@@ -89,7 +97,9 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       feetApart: { 7: '.o....o.' },
     },
     shiny: { o: 0xd9c2ff, m: 0xa98ad8 },
+    head: { big: { top: 2, eye: 4, left: 0, right: 11 }, mini: { top: 2, eye: 3, left: 0, right: 7 } },
     accessory: {
+      slot: 'head',
       big: { rows: ['r...r', 'rrRrr', 'r...r'], x: 7, y: 0, ink: RIBBON },
       mini: { rows: ['r.r', 'rRr'], x: 5, y: 0, ink: RIBBON },
     },
@@ -133,7 +143,9 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       feetApart: { 7: '.y....y.' },
     },
     shiny: { o: 0xbfeaff, l: 0xe6f8ff },
+    head: { big: { top: 2, eye: 4, left: 1, right: 10 }, mini: { top: 1, eye: 3, left: 1, right: 6 } },
     accessory: {
+      slot: 'head',
       big: { rows: ['.f.', 'fYf', '.f.'], x: 7, y: 0, ink: BLOOM },
       mini: { rows: ['.f.', 'fYf'], x: 5, y: 0, ink: BLOOM },
     },
@@ -177,7 +189,9 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       feetApart: { 7: '.o....o.' },
     },
     shiny: { o: 0xf7f2ea, d: 0x8a8a9a },
+    head: { big: { top: 0, eye: 4, left: 0, right: 11 }, mini: { top: 0, eye: 2, left: 0, right: 7 } },
     accessory: {
+      slot: 'body',
       big: { rows: ['ssssssss', '.sS.....'], x: 2, y: 8, ink: SCARF },
       mini: { rows: ['ssssss'], x: 1, y: 4, ink: SCARF },
     },
@@ -221,7 +235,9 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       feetApart: { 7: 'dddddddd' },
     },
     shiny: { o: 0xffb8dc, l: 0xffe6f2, d: 0xe48ab8, m: 0xc06a98 },
+    head: { big: { top: 2, eye: 6, left: 0, right: 11 }, mini: { top: 1, eye: 4, left: 0, right: 7 } },
     accessory: {
+      slot: 'head',
       big: { rows: ['y.y.y', 'yyyyy'], x: 4, y: 0, ink: GOLD },
       mini: { rows: ['y..y', 'yyyy'], x: 2, y: 0, ink: GOLD },
     },
@@ -265,7 +281,9 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       feetApart: { 7: '.o....o.' },
     },
     shiny: { o: 0xffe6a0 },
+    head: { big: { top: 4, eye: 5, left: 0, right: 11 }, mini: { top: 2, eye: 3, left: 0, right: 7 } },
     accessory: {
+      slot: 'head',
       big: { rows: ['r...r', 'rrRrr', 'r...r'], x: 4, y: 1, ink: RIBBON },
       mini: { rows: ['rRr'], x: 3, y: 2, ink: RIBBON },
     },
@@ -309,7 +327,9 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       feetApart: { 7: '.p....p.' },
     },
     shiny: { o: 0xd6d8e8 },
+    head: { big: { top: 2, eye: 4, left: 0, right: 11 }, mini: { top: 1, eye: 2, left: 0, right: 7 } },
     accessory: {
+      slot: 'head',
       big: { rows: ['..gg', '.gg.', 'gg..'], x: 8, y: 0, ink: LEAF },
       mini: { rows: ['.g', 'g.'], x: 6, y: 0, ink: LEAF },
     },
@@ -353,7 +373,9 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       feetApart: { 7: '.y....y.' },
     },
     shiny: { o: 0x8f64bf },
+    head: { big: { top: 0, eye: 5, left: 1, right: 10 }, mini: { top: 0, eye: 3, left: 0, right: 7 } },
     accessory: {
+      slot: 'body',
       big: { rows: ['rrRRrr'], x: 3, y: 8, ink: RIBBON },
       mini: { rows: ['rRRr'], x: 2, y: 5, ink: RIBBON },
     },
@@ -397,7 +419,9 @@ export const SPECIES: Readonly<Record<string, Species>> = {
       feetApart: { 7: '.oo..oo.' },
     },
     shiny: { o: 0x93c6ff, m: 0x4f7fc0 },
+    head: { big: { top: 1, eye: 2, left: 1, right: 10 }, mini: { top: 0, eye: 1, left: 1, right: 6 } },
     accessory: {
+      slot: 'head',
       big: { rows: ['y.y.y', 'yyyyy'], x: 4, y: 0, ink: GOLD },
       mini: { rows: ['yy'], x: 3, y: 0, ink: GOLD },
     },

@@ -29,6 +29,8 @@ export type PetStats = {
   gifts: number
   bonus: number
   shiny: boolean
+  /** Finished turns by local quarter of the day (0–6, 6–12, 12–18, 18–24): its rhythm. */
+  hours: number[]
 }
 
 /** What the Pet Quest pane's text shows. */
