@@ -67,8 +67,21 @@ Level `n + 1` takes `25 × n²` XP (Lv 5 at 400, Lv 10 at 2,025, Lv 50 at 60,025
 | Teen | Lv 15 | A taller body, and its accessory (a ribbon, a flower, a scarf, a crown, a leaf, a knit hat) |
 | Adult | Lv 40 | Evolves into the form of its nature (below), and twinkles. One in twenty takes the **rare form** instead |
 
+<p align="center"><img src="assets/stages.svg" width="720" alt="Every species as a baby, a teen, an adult of each nature, and its rare form"></p>
+
+## Games
+
+<table>
+<tr>
+<td align="center"><img src="assets/run.gif" width="360" alt="Pet Run: the cat jumping bugs and catching snacks"><br><code>/pet play</code>: Pet Run</td>
+<td align="center"><img src="assets/quest.gif" width="320" alt="Pet Quest: the chick clearing stage 1"><br><code>/pet quest</code>: Pet Quest</td>
+</tr>
+</table>
+
+Snacks from both games are experience. What a game earned stays with the pet that played it, even if you `/pet choose` another mid-game.
+
 <details>
-<summary><b>Games</b>: Pet Run and Pet Quest</summary>
+<summary><b>How to play</b></summary>
 
 ### Pet Run
 
@@ -80,12 +93,18 @@ Level `n + 1` takes `25 × n²` XP (Lv 5 at 400, Lv 10 at 2,025, Lv 50 at 60,025
 
 Eight stages, each opened by clearing the one before; `/pet quest 3` replays one already open. Stages are tile maps in [`hooks/quest.ts`](hooks/quest.ts), one character per 4×4 tile (all eight take about 7 KB), and a test searches every stage for a way through.
 
-Snacks from both games are experience, and `/pet status` counts them together. What a game earned stays with the pet that played it, even if you `/pet choose` another mid-game. Off the terminal both games draw as SVG, with buttons to tap.
+`/pet status` counts the snacks of both games together. Off the terminal both games draw as SVG, with buttons to tap.
 
 </details>
 
+## It takes after you
+
+What you do most becomes its **nature**, and the yard grows that way: a building site, a library corner, a garden or an arcade, tinted to match, under your local sky.
+
+<p align="center"><img src="assets/yards.svg" width="520" alt="The yard each leaning grows, a mixed one, and the yard at night"></p>
+
 <details>
-<summary><b>Nature and rhythm</b>: the pet takes after you</summary>
+<summary><b>Nature, leaning and rhythm</b></summary>
 
 ### Nature
 
@@ -197,7 +216,7 @@ ink: { o: 0xffd787, w: 0xfffaf0, p: 0xffafd7, k: 0x5f4b4b, m: 0xd08770, b: 0x87d
 ```bash
 claude plugin validate .claude-plugin/plugin.json   # manifest and hooks module
 claude plugin test .                                # tests/*.test.ts
-node scripts/sprites.mjs && node scripts/demo.mjs   # regenerate assets/ after a drawing change (Node 22.18+)
+node scripts/sprites.mjs && node scripts/demo.mjs && node scripts/showcase.mjs   # regenerate assets/ (Node 22.18+)
 ```
 
 The drawing lives in [`hooks/scene.ts`](hooks/scene.ts), which has no `$`, so tests draw exactly what the pane does. CI fails when `assets/` is stale. Once Claude Code has loaded the plugin from this folder it lays its type declarations in `.claude-plugin/types/`, and `tsc -p .` type-checks the plugin.
