@@ -4,9 +4,11 @@ A pixel pet that lives in a Claude Code pane. It wanders while you work, reacts 
 
 <p align="center"><img src="assets/demo.gif" width="480" alt="The cat, chick, dog and slime walking, working, cheering, being patted and napping"></p>
 
-| <img src="assets/cat.svg" width="144" alt="cat"> | <img src="assets/chick.svg" width="144" alt="chick"> | <img src="assets/dog.svg" width="144" alt="dog"> | <img src="assets/slime.svg" width="144" alt="slime"> |
+| <img src="assets/cat.svg" width="120" alt="cat"> | <img src="assets/chick.svg" width="120" alt="chick"> | <img src="assets/dog.svg" width="120" alt="dog"> | <img src="assets/slime.svg" width="120" alt="slime"> |
 |:---:|:---:|:---:|:---:|
 | `cat` | `chick` | `dog` | `slime` |
+| <img src="assets/bunny.svg" width="120" alt="bunny"> | <img src="assets/hamster.svg" width="120" alt="hamster"> | <img src="assets/penguin.svg" width="120" alt="penguin"> | <img src="assets/frog.svg" width="120" alt="frog"> |
+| `bunny` | `hamster` | `penguin` | `frog` |
 
 > **Early access.** This is a Claude Code *mod* (a plugin of function hooks). That API is early access and can change between Claude Code releases, so a new release may break the pet until this plugin catches up.
 
@@ -41,7 +43,7 @@ claude --plugin-dir /path/to/claude-pets
 | `/pet` | Let the pet out |
 | `/pet pat` | Pat it |
 | `/pet name <name>` | Name it (up to 20 characters) |
-| `/pet choose <species>` | Bring out another pet: `cat`, `chick`, `dog`, `slime` |
+| `/pet choose <species>` | Bring out another pet: `cat`, `chick`, `dog`, `slime`, `bunny`, `hamster`, `penguin`, `frog` |
 | `/pet size <size>` | How tall the pane is: `small` (6 rows) or `medium` (9, the default) |
 | `/pet status` | Level, experience and counts |
 | `/pet bye` | Close the pane |
@@ -81,19 +83,23 @@ A species is drawn twice in [`hooks/species.ts`](hooks/species.ts), one characte
 ```ts
 big: {
   rows: [
-    '..o......o..',
-    '.opo....opo.',
-    '.oooooooooo.',
+    '.o........o.',
+    '.oo......oo.',
+    '.opoooooopo.',
+    'oooooooooooo',
+    'oowkoooowkoo',   // eyes: 2×2, a white glint in the top corner
+    'ookkooookkoo',
+    'oppoommooppo',   // blush and a small mouth
     // ...12 rows of 12 characters
   ],
-  eyesShut: { 4: 'oooooooooooo', 5: 'okkkooookkko' },
-  tear: { 6: 'opbowppwoppo' },
-  feetApart: { 11: '.oo......oo.' },
+  eyesShut: { 4: 'oooooooooooo' },   // the eyes' top row turns to fur: a closed, happy line
+  tear: { 6: 'obpoommooppo' },
+  feetApart: { 11: '..oo....oo..' },
 },
-ink: { o: 0xffd787, w: 0xfff3dc, p: 0xffafd7, k: 0x5f5f5f },
+ink: { o: 0xffd787, w: 0xfffaf0, p: 0xffafd7, k: 0x5f4b4b, m: 0xd08770, b: 0x87d7ff },
 ```
 
-`.` is empty; every other character needs a color in `ink`. Draw it facing left. Then supply, by row index, the rows that replace the eyes (`eyesShut`), the cheek row (`tear`) and the feet (`feetApart`).
+`.` is empty; every other character needs a color in `ink`. Draw it facing left, with a big head and a small body. Then supply, by row index, the rows that replace the eyes (`eyesShut`), the cheek row (`tear`) and the feet (`feetApart`). A test checks every row's width and colors.
 
 ## Development
 
