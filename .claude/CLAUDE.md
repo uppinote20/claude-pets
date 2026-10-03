@@ -20,6 +20,8 @@ claude-pets/
 ├── tests/pet.test.ts      # `claude plugin test .`
 ├── scripts/sprites.mjs    # Regenerates assets/*.svg from the sprite data
 ├── scripts/demo.mjs       # Regenerates assets/demo.gif with hooks/scene.ts (GIF encoder inline)
+├── scripts/showcase.mjs   # Regenerates assets/run.gif, quest.gif, stages.svg, yards.svg from the hooks
+├── scripts/gif.mjs        # GIF encoder shared by the two scripts above
 └── assets/                # README images (generated, committed)
 ```
 
@@ -28,7 +30,7 @@ claude-pets/
 ```bash
 claude plugin validate .claude-plugin/plugin.json   # manifest + hooks module
 claude plugin test .                                # tests/*.test.ts
-node scripts/sprites.mjs && node scripts/demo.mjs   # after a sprite or drawing change (Node 22.18+)
+node scripts/sprites.mjs && node scripts/demo.mjs && node scripts/showcase.mjs   # after a sprite, drawing or game change (Node 22.18+)
 claude --plugin-dir .                               # try it in a session
 ```
 

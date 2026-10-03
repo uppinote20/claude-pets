@@ -43,4 +43,5 @@ jobs:
         run: |
           node scripts/sprites.mjs
           node scripts/demo.mjs
+          node scripts/showcase.mjs
           git diff --exit-code -- assets/
