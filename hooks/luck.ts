@@ -14,6 +14,8 @@ export const LUCKY_PAT_CHANCE = 0.1
 export const SHINY_CHANCE = 1 / 32
 /** The biggest gift, and what a second sparkle stone is worth instead. */
 const JACKPOT_XP = 100
+/** An evolution at Lv 40 takes the rare form this often. */
+export const RARE_CHANCE = 1 / 20
 
 export type Gift = { kind: 'xp'; name: string; xp: number } | { kind: 'stone' }
 

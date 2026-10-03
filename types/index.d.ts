@@ -31,6 +31,8 @@ export type PetStats = {
   shiny: boolean
   /** Finished turns by local quarter of the day (0–6, 6–12, 12–18, 18–24): its rhythm. */
   hours: number[]
+  /** What it became at Lv 40: its nature then, or 'rare'; empty before. */
+  form: string
 }
 
 /** What the Pet Quest pane's text shows. */

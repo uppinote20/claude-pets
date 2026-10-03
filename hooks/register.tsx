@@ -21,12 +21,13 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Pet, PetProfile, PetSize, PetStats, QuestView, RunView } from '../types'
-import { DEFAULT_SIZE, SIZES, cardWidthFor, lookOf, pixelsSvg, stageOf, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
+import { DEFAULT_SIZE, SIZES, STAGE_LEVELS, cardWidthFor, lookOf, pixelsSvg, stageOf, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
 import { QUEST_HEIGHT, QUEST_TICK_MS, STAGES, advanceQuest, jumpQuest, newQuest, paintQuest, questScore } from './quest'
 import type { Quest } from './quest'
+import type { Form } from './scene'
 import { DAYPARTS, daypartOf, musingOf, natureOf, rhythmOf } from './nature'
 import type { Daypart, Nature } from './nature'
-import { GIFT_CHANCE, LUCKY_PAT_CHANCE, SHINY_CHANCE, giftOf, worthOf } from './luck'
+import { GIFT_CHANCE, LUCKY_PAT_CHANCE, RARE_CHANCE, SHINY_CHANCE, giftOf, worthOf } from './luck'
 import { RUN_HEIGHT, RUN_TICK_MS, advance, jump, newRun, paintRun, scoreOf } from './run'
 import type { Run } from './run'
 import { DEFAULT_SPECIES, SPECIES } from './species'
@@ -67,7 +68,7 @@ const PANEL_BAR = 20
 
 const PASTEL = { yellow: '#ffd787', pink: '#ffafd7', green: '#afd7af', ink: '#3a2a2a', gray: '#b2b2b2', dim: '#5f5f5f' } as const
 const NEWBORN: Pet = { x: 0, dir: 1, frame: 0, mood: 'walk', hold: 0, idle: 0 }
-const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0] }
+const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0], form: '' }
 const STRANGER: PetProfile = { species: DEFAULT_SPECIES, size: DEFAULT_SIZE, pets: {} }
 
 const pet = atom({ plugin: 'pets', key: 'pet' } as const, NEWBORN)
@@ -84,6 +85,23 @@ let isRemote = false
 // The level last seen for the pet that is out, so a level-up is announced once, whether it came
 // from a turn, a pat or a run.
 let shownLevel = 1
+// The `luck` setting, as register last read it: the rare form is luck too.
+let isLuckOn = true
+const FORMS: readonly string[] = ['worker', 'scholar', 'sweetie', 'gamer', 'curious', 'rare'] satisfies readonly Form[]
+
+function isForm(value: string): value is Form {
+  return FORMS.includes(value)
+}
+
+/** An adult's form: as kept, else what it would become now. */
+function formOf(stats: PetStats): Form {
+  return isForm(stats.form) ? stats.form : natureOf(stats)
+}
+
+/** `scholar`, or for the rare form its own name (`celestial`). */
+function formName(kind: Species, form: Form): string {
+  return form === 'rare' ? kind.rare.name : form
+}
 // The host's offset from UTC in minutes: the module's own clock is UTC, so `date` says.
 let utcOffset = 0
 // The engine's clock as of the last tick (tests move it with mock.clock).
@@ -183,6 +201,7 @@ function toStats(fields: Record<string, unknown>): PetStats {
     bonus: count(fields.bonus),
     shiny: fields.shiny === true,
     hours: DAYPARTS.map((_, at) => count(Array.isArray(fields.hours) ? fields.hours[at] : 0)),
+    form: typeof fields.form === 'string' && isForm(fields.form) ? fields.form : '',
   }
 }
 
@@ -361,7 +380,12 @@ async function openPane($: EngineInterface, who: PetProfile): Promise<string> {
  */
 async function grow($: EngineInterface, change: (stats: PetStats) => PetStats): Promise<PetProfile> {
   const { species, size } = await read($, profile)
-  const now = withStats({ ...toProfile(await $.store.get(PROFILE_KEY)), species, size }, change)
+  // The form is settled the first time it is seen at Lv 40: its nature then, or by luck the rare one.
+  const settle = (stats: PetStats): PetStats =>
+    stats.form === '' && levelOf(stats) >= STAGE_LEVELS.adult
+      ? { ...stats, form: isLuckOn && Math.random() < RARE_CHANCE ? 'rare' : natureOf(stats) }
+      : stats
+  const now = withStats({ ...toProfile(await $.store.get(PROFILE_KEY)), species, size }, stats => settle(change(stats)))
   await $.store.set(PROFILE_KEY, now)
   await update($, profile, () => now)
 
@@ -382,7 +406,7 @@ function viewOf(run: Run): RunView {
 
 /** Cells of the course for the terminal's Raster. */
 function runCells(run: Run, who: PetProfile): string {
-  return pack(toCells(paintRun(run, speciesOf(who), stageOf(levelOf(statsOf(who))))))
+  return pack(toCells(paintRun(run, speciesOf(who), stageOf(levelOf(statsOf(who))), formOf(statsOf(who)))))
 }
 
 /**
@@ -429,7 +453,7 @@ function questViewOf(stage: Quest): QuestView {
 }
 
 function questCells(stage: Quest, who: PetProfile): string {
-  return pack(toCells(paintQuest(stage, speciesOf(who), stageOf(levelOf(statsOf(who))))))
+  return pack(toCells(paintQuest(stage, speciesOf(who), stageOf(levelOf(statsOf(who))), formOf(statsOf(who)))))
 }
 
 /**
@@ -509,9 +533,9 @@ function announce($: EngineInterface, now: PetProfile, shown: number): number {
     $.ui.toast(
       stage === stageOf(shown)
         ? `${called} reached Lv ${level}!`
-        : stage === 'star'
-          ? `${called} is a star now! (Lv ${level})`
-          : `${called} grew up! (Lv ${level})`,
+        : stage === 'adult'
+          ? `${called} evolved into a ${formName(speciesOf(now), formOf(statsOf(now)))} ${speciesOf(now).label}! (Lv ${level})`
+          : `${called} grew into a teen! (Lv ${level})`,
     )
   }
 
@@ -519,8 +543,9 @@ function announce($: EngineInterface, now: PetProfile, shown: number): number {
 }
 
 export const register: Register = (on, options) => {
-  // Off, nothing is left to chance: no gifts, no lucky pats, no shiny pets.
+  // Off, nothing is left to chance: no gifts, no lucky pats, no shiny pets, no rare forms.
   const hasLuck = options.luck !== false
+  isLuckOn = hasLuck
   const lucky = (chance: number) => hasLuck && Math.random() < chance
 
   // Tool calls since the last save: the store is written once a turn, not on every call.
@@ -745,7 +770,7 @@ export const register: Register = (on, options) => {
       const isBeside = !isDocked && e.props.bodyColumns >= fewest + PANEL + 4
       const room = isBeside ? e.props.bodyColumns - PANEL - 4 : e.props.bodyColumns - 2
       const columns = Math.max(fewest, Math.min(MAX_YARD, room))
-      const scene = paint(one, kind, who.size, columns, STEPS, { isSad, stage: stageOf(levelOf(stats)), nature: natureOf(stats), daypart: daypartNow() })
+      const scene = paint(one, kind, who.size, columns, STEPS, { isSad, stage: stageOf(levelOf(stats)), form: formOf(stats), nature: natureOf(stats), daypart: daypartNow() })
       const cells = toCells(scene.pixels)
       const width = cells[0]?.length ?? 0
       const level = levelOf(stats)
@@ -757,7 +782,7 @@ export const register: Register = (on, options) => {
       const yard = <Raster key="pet" columns={width} rows={cells.length} cells={pack(cells)} />
       const panel = (
         <Box flexDirection="column" width={PANEL} paddingLeft={isBeside ? 2 : 0}>
-          <Text color={PASTEL.gray} dimColor>{`${kind.label.toUpperCase()}${stats.shiny ? ' ✦' : ''}${stage === 'baby' ? '' : ` · ${stage.toUpperCase()}`}`}</Text>
+          <Text color={PASTEL.gray} dimColor>{`${kind.label.toUpperCase()}${stats.shiny ? ' ✦' : ''}${stage === 'baby' ? '' : stage === 'teen' ? ' · TEEN' : ` · ${formName(kind, formOf(stats)).toUpperCase()}`}`}</Text>
           <Box>
             <Text color={PASTEL.pink} bold>{`Lv ${level}`}</Text>
             <Text color={PASTEL.gray}>{`  ${xpOf(stats)} / ${XP_CURVE * level * level} xp`}</Text>
@@ -815,7 +840,7 @@ export const register: Register = (on, options) => {
     const { Svg } = $.ui.resolve(e)
     const tally = tallyLine(stats)
     const across = Math.max(fewest, cardWidthFor(who.size, tally), Math.min(MAX_CARD, Math.floor((e.props.bodyColumns * CELL_PX) / unit) - 4))
-    const scene = paint(one, kind, who.size, across, STEPS, { isSad, withGrass: false, stage: stageOf(levelOf(stats)), nature: natureOf(stats), daypart: daypartNow() })
+    const scene = paint(one, kind, who.size, across, STEPS, { isSad, withGrass: false, stage: stageOf(levelOf(stats)), form: formOf(stats), nature: natureOf(stats), daypart: daypartNow() })
     const caption = { name: stats.name, level: levelOf(stats), progress: progressOf(stats), says, tally, daypart: daypartNow() }
     const alt = `${titleOf(who)}, Lv ${levelOf(stats)}${says === '' ? '' : `: ${says}`}`
 
@@ -886,7 +911,7 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Text>{`${calledOf(who)} · score ${view.score} · best ${best} · snacks ${view.snacks}${hint === '' ? '' : ` · ${hint}`}`}</Text>
-        <Svg source={pixelsSvg(paintRun(run, speciesOf(who), stageOf(levelOf(statsOf(who)))), 6)} alt={`Pet Run, score ${view.score}`} />
+        <Svg source={pixelsSvg(paintRun(run, speciesOf(who), stageOf(levelOf(statsOf(who))), formOf(statsOf(who))), 6)} alt={`Pet Run, score ${view.score}`} />
         <Box gap={1}>
           <Button key="jump" hotkey="j" onPress={onJump}>Jump</Button>
           <Button key="restart" hotkey="r" onPress={onRestart}>Again</Button>
@@ -974,7 +999,7 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Text>{`${calledOf(who)} · ${line}${hint === '' ? '' : ` · ${hint}`}`}</Text>
-        <Svg source={pixelsSvg(paintQuest(stage, speciesOf(who), stageOf(levelOf(statsOf(who)))), 5)} alt={`Pet Quest stage ${view.stage + 1}`} />
+        <Svg source={pixelsSvg(paintQuest(stage, speciesOf(who), stageOf(levelOf(statsOf(who))), formOf(statsOf(who))), 5)} alt={`Pet Quest stage ${view.stage + 1}`} />
         <Box gap={1}>
           <Button key="jump" hotkey="j" onPress={onJump}>Jump</Button>
           <Button key="retry" hotkey="r" onPress={onRetry}>Retry</Button>

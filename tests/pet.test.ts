@@ -17,7 +17,7 @@ import { daypartOf, natureOf, rhythmOf } from '../hooks/nature'
 import { QUEST_ROWS, STAGES, advanceQuest, jumpQuest, newQuest } from '../hooks/quest'
 import type { Quest } from '../hooks/quest'
 import { advance, jump, newRun, scoreOf } from '../hooks/run'
-import { stageOf } from '../hooks/scene'
+import { bodyOf, paint, stageOf } from '../hooks/scene'
 import { SPECIES } from '../hooks/species'
 
 const PROPS = {
@@ -197,20 +197,26 @@ test('the size is kept across sessions', async ($, on) => {
 
 test('every sprite row is as wide as its sprite, and every mark has a color', async () => {
   for (const [id, kind] of Object.entries(SPECIES)) {
-    for (const [size, side] of [['big', 12], ['mini', 8]] as const) {
-      const sprite = kind[size]
+    const sprites = [
+      ['big', kind.big, 12],
+      ['mini', kind.mini, 8],
+      ['teen', kind.teen, 12],
+      ...Object.entries(kind.adults ?? {}).map(([form, sprite]) => [form, sprite, 12] as const),
+    ] as const
+    for (const [size, sprite, side] of sprites) {
       const rows = [sprite.rows, sprite.eyesShut, sprite.tear, sprite.feetApart].flatMap(Object.values)
+      const ink = { ...kind.ink, ...(sprite.ink ?? {}) }
 
       expect(sprite.rows.length).toBe(side)
       for (const row of rows) {
         expect({ id, size, row, width: row.length }).toEqual({ id, size, row, width: side })
-        expect([...row].filter(mark => mark !== '.' && !(mark in kind.ink))).toEqual([])
+        expect([...row].filter(mark => mark !== '.' && !(mark in ink))).toEqual([])
       }
     }
   }
 })
 
-test('a pet grows up at Lv 15 and wears its accessory, and is a star at Lv 40', { options: { luck: false } }, async ($, on) => {
+test('a pet grows into a teen at Lv 15 and wears its accessory', { options: { luck: false } }, async ($, on) => {
   // 4,899 xp: one short of Lv 15.
   mock.store(on, { profile: { species: 'cat', pets: { cat: { name: '초코', tools: 4899 } } } })
   const toasts: string[] = []
@@ -232,15 +238,15 @@ test('a pet grows up at Lv 15 and wears its accessory, and is a star at Lv 40', 
 
   const turn = { answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' } as const
   await $.turn.complete(turn)
-  expect(toasts).toEqual(['초코 grew up! (Lv 15)'])
+  expect(toasts).toEqual(['초코 grew into a teen! (Lv 15)'])
   expect((await card.find({ type: 'Svg' }))?.props.source).toContain(ribbon)
-  expect(await pane.find({ type: 'Text', text: 'CAT · GROWN' })).toBeDefined()
+  expect(await pane.find({ type: 'Text', text: 'CAT · TEEN' })).toBeDefined()
   await pane.unmount()
   await card.unmount()
 })
 
 test('stages begin at Lv 15 and Lv 40', () => {
-  expect([1, 14, 15, 39, 40, 99].map(stageOf)).toEqual(['baby', 'baby', 'grown', 'grown', 'star', 'star'])
+  expect([1, 14, 15, 39, 40, 99].map(stageOf)).toEqual(['baby', 'baby', 'teen', 'teen', 'adult', 'adult'])
 })
 
 test('Pet Run: a jump starts it, a snack touched is eaten, a bug touched ends it', () => {
@@ -641,7 +647,7 @@ test('a shiny pet is drawn in its shiny colors and says so', async ($, on) => {
 })
 
 test('a nature shows once one side of it stands out, and a rhythm once its hours do', () => {
-  const none = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0] }
+  const none = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0, cleared: 0, gifts: 0, bonus: 0, shiny: false, hours: [0, 0, 0, 0], form: '' }
 
   expect(natureOf({ ...none, tools: 30 })).toBe('curious')
   expect(natureOf({ ...none, tools: 300, turns: 10 })).toBe('worker')
@@ -677,4 +683,99 @@ test('a worker shows its nature in the stats, and the card turns night blue at n
   const card = await $.ui.mount({ ...PANE, surface: 'mobile' })
   expect((await card.find({ type: 'Svg' }))?.props.source).toContain('#2b3050')
   await card.unmount()
+})
+
+test('snacks from a game that reach Lv 40 evolve it and say so, as any other experience does', { options: { luck: false } }, async ($, on) => {
+  // 38,024 xp, all tool calls: one snack short of Lv 40 (38,025), and a worker.
+  const kept = new Map<string, unknown>([['profile', { species: 'cat', pets: { cat: { name: '초코', tools: 38_024 } } }]])
+  on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', async (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  const toasts: string[] = []
+  on('ui.toast', async (_, e) => {
+    toasts.push(e.text)
+
+    return { value: undefined }
+  })
+  const clock = mock.clock(on, { now: 0 })
+  on('ui.open', async () => ({ value: { isPlaced: true as const } }))
+  on('ui.blit', async () => ({ value: {} }))
+  on('session.surfaces', async () => ({ value: ['terminal' as const] }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const run = async (args: string) =>
+    (
+      await $.command.run({
+        command: 'pet',
+        args,
+        origin: { kind: 'composer' },
+        presentation: { isFullscreen: false, columns: 80 },
+      })
+    ).text
+
+  await run('quest')
+  const game = await $.ui.mount({ ...PANE, requestId: 'pets-quest', surface: 'terminal' })
+  // Stage 1 jumped every five ticks eats its first snack by tick 46 and is still under way at 80.
+  for (let beat = 0; beat < 16; beat += 1) {
+    await game.press({ key: 'jump' })
+    await clock.advance(50 * 5)
+  }
+  expect(toasts).toEqual([])
+
+  // Starting the stage again keeps the snacks so far: one is enough.
+  await run('quest')
+  expect(toasts).toContain('초코 evolved into a worker cat! (Lv 40)')
+  expect(kept.get('profile')).toMatchObject({ pets: { cat: { form: 'worker' } } })
+  await game.unmount()
+})
+
+test('at Lv 40 it evolves into the form of its nature, kept from then on', { options: { luck: false } }, async ($, on) => {
+  // 38,020 xp, all tool calls: a turn short of Lv 40 (38,025), and a worker.
+  const kept = new Map<string, unknown>([['profile', { species: 'cat', pets: { cat: { name: '초코', tools: 38_020 } } }]])
+  on('store.get', async (_, e) => ({ value: kept.get(e.key) }))
+  on('store.set', async (_, e) => {
+    kept.set(e.key, e.value)
+
+    return { value: undefined }
+  })
+  const toasts: string[] = []
+  on('ui.toast', async (_, e) => {
+    toasts.push(e.text)
+
+    return { value: undefined }
+  })
+  on('turn.complete', async () => ({ text: '' }))
+  on('command.register', async () => ({ value: { command: 'pet' } }))
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' })
+  expect(toasts).toEqual(['초코 evolved into a worker cat! (Lv 40)'])
+  expect((kept.get('profile') as { pets: { cat: { form: string } } }).pets.cat.form).toBe('worker')
+
+  // The cat has a worker adult of its own: overalls.
+  const card = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await card.find({ type: 'Svg' }))?.props.source).toContain('#5b7fb8')
+  await card.unmount()
+  const pane = await $.ui.mount({ ...PANE, surface: 'terminal', props: { ...PROPS, bodyColumns: 100 } })
+  expect(await pane.find({ type: 'Text', text: 'CAT · WORKER' })).toBeDefined()
+  await pane.unmount()
+})
+
+test('an adult without a drawing of its own is the teen in its gear, and the rare form wears its mark', () => {
+  const dog = SPECIES.dog!
+  const cat = SPECIES.cat!
+
+  expect(bodyOf(dog, 'adult', 'worker')).toBe(dog.teen)
+  expect(bodyOf(cat, 'adult', 'scholar')).toBe(cat.adults?.scholar)
+  expect(bodyOf(cat, 'adult', 'rare')).toBe(cat.teen)
+
+  const one = { x: 0, dir: -1 as const, frame: 2, mood: 'walk' as const, hold: 0, idle: 0 }
+  const colors = (form: 'rare' | 'worker') => new Set(paint(one, dog, 'medium', 30, 20, { stage: 'adult', form }).pixels.flat())
+  expect(colors('rare').has(0xc3cde0)).toBe(true)
+  expect(colors('worker').has(0xc3cde0)).toBe(false)
 })

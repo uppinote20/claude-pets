@@ -17,14 +17,17 @@ export type Size = 'small' | 'medium'
 export const SIZES: readonly Size[] = ['small', 'medium']
 export const DEFAULT_SIZE: Size = 'medium'
 
-/** How far a pet has grown: a baby as drawn, grown with its accessory, a star that twinkles too. */
-export type Stage = 'baby' | 'grown' | 'star'
+/** How far a pet has grown: a baby, a teen with its accessory, an adult in its form. */
+export type Stage = 'baby' | 'teen' | 'adult'
+
+/** What an adult became at Lv 40: its nature then, or one time in twenty the rare form. */
+export type Form = Nature | 'rare'
 
 /** The levels each stage begins at. */
-export const STAGE_LEVELS = { grown: 15, star: 40 } as const
+export const STAGE_LEVELS = { teen: 15, adult: 40 } as const
 
 export function stageOf(level: number): Stage {
-  return level >= STAGE_LEVELS.star ? 'star' : level >= STAGE_LEVELS.grown ? 'grown' : 'baby'
+  return level >= STAGE_LEVELS.adult ? 'adult' : level >= STAGE_LEVELS.teen ? 'teen' : 'baby'
 }
 
 type Look = {
@@ -63,8 +66,8 @@ const GIFT = ['y.y..', '.y...', 'ppypp', 'ppypp', 'ppypp'] as const
 
 /** What each nature holds up while a tool runs. */
 const PROPS: Readonly<Record<Nature, { rows: readonly string[]; ink: Readonly<Record<string, number>> } | null>> = {
-  // The worker's is its pickaxe, swung while tools run.
-  worker: null,
+  // An adult worker swings its pickaxe instead.
+  worker: { rows: ['kkkkk', 'kbbbk', 'kbbbk', 'kkkkk', '.kkk.'], ink: { k: 0x8a8a9a, b: 0x87d7ff } },
   scholar: { rows: ['bbwbb', 'bbwbb', 'bbwbb'], ink: { b: 0x6fa8dc, w: 0xfffaf0 } },
   sweetie: { rows: ['h.h', 'hhh', '.h.'], ink: { h: 0xff87af } },
   gamer: { rows: ['.....', 'kkkkk', 'kgkrk', 'kkkkk'], ink: { k: 0x8a8a9a, g: 0x7cc576, r: 0xff6b8a } },
@@ -80,11 +83,14 @@ const SKY: Readonly<Record<Daypart, { rows: readonly string[]; ink: Readonly<Rec
 const STARS = [3, 11, 19, 27, 35] as const
 
 /** Pixels laid over the sprite, facing left, from its top left. */
-type Overlay = { rows: readonly string[]; x: number; y: number; ink: Readonly<Record<string, number>> }
+export type Overlay = { rows: readonly string[]; x: number; y: number; ink: Readonly<Record<string, number>> }
+
+/** The marks that are eyes, which gear must never cover. */
+const EYE_MARKS = new Set(['k', 'e', 'w'])
 
 const GEAR_INK = {
   k: 0x4f5584, // cap, headset band
-  h: 0x8a90b8, // the cap's top, catching the light
+  h: 0x8a90b8, // the cap's top and the headset's band, catching the light
   y: 0xffd447, // tassel
   r: 0xff6b8a, // headset cups
   g: 0xc0c4d0, // pickaxe head
@@ -98,7 +104,7 @@ const GEAR_INK = {
  * (raised and lowered while tools run), the scholar's cap, the gamer's headset, the
  * sweetie's flower pin. Nothing for the curious.
  */
-export function gearOf(nature: Nature, head: Head, isBig: boolean, isWorking: boolean, frame: number): Overlay[] {
+export function gearOf(nature: Nature, head: Head, isBig: boolean, isWorking: boolean, frame: number, rows: readonly string[] = []): Overlay[] {
   const middle = Math.round((head.left + head.right) / 2)
 
   switch (nature) {
@@ -109,20 +115,27 @@ export function gearOf(nature: Nature, head: Head, isBig: boolean, isWorking: bo
       return [{ rows, x: head.left - (isBig ? 4 : 3), y: head.eye + swing + (isBig ? 1 : 0), ink: GEAR_INK }]
     }
     case 'scholar': {
-      const rows = isBig ? ['...h...', 'hhhhhhh', '.kkkkky', '......y'] : ['.hhh.', 'hhhhh', '.kkky']
+      // The mini gets the board alone, two rows above its eyes.
+      const rows = isBig ? ['...h...', 'hhhhhhh', '.kkkkky', '......y'] : ['.hhh.', 'hhhhh']
       const width = rows[1]?.length ?? 0
 
-      return [{ rows, x: middle - Math.floor(width / 2), y: head.top - (isBig ? 2 : 1), ink: GEAR_INK }]
+      return [{ rows, x: middle - Math.floor(width / 2), y: head.top - 2, ink: GEAR_INK }]
     }
     case 'gamer': {
-      const across = head.right - head.left + 1
-      const band = '.'.repeat(2) + 'k'.repeat(Math.max(0, across - 4)) + '.'.repeat(2)
-      const side = '.k' + '.'.repeat(Math.max(0, across - 4)) + 'k.'
-      const cup = 'rr' + '.'.repeat(Math.max(0, across - 4)) + 'rr'
-      const reach = Math.max(1, head.eye - head.top)
-      const rows = [band, ...Array.from({ length: reach - 1 }, () => side), cup, ...(isBig ? [cup] : [])]
+      // Cups on the sides of the head, inside its edge unless an eye is there, then just outside.
+      const cup = isBig ? 2 : 1
+      const eyes = rows[head.eye] ?? ''
+      const isEyeAt = (from: number) => [...eyes.slice(Math.max(0, from), from + cup)].some(mark => EYE_MARKS.has(mark))
+      const isInside = !isEyeAt(head.left) && !isEyeAt(head.right - cup + 1)
+      const left = isInside ? head.left : head.left - cup
+      const across = (isInside ? head.right - head.left + 1 : head.right - head.left + 1 + cup * 2) - cup * 2
+      const band = '.'.repeat(cup) + 'h'.repeat(across) + '.'.repeat(cup)
+      const side = '.'.repeat(cup - 1) + 'h' + '.'.repeat(across) + 'h' + '.'.repeat(cup - 1)
+      const cups = 'r'.repeat(cup) + '.'.repeat(across) + 'r'.repeat(cup)
+      const reach = Math.max(0, head.eye - head.top)
+      const lines = [band, ...Array.from({ length: reach }, () => side), cups, ...(isBig ? [cups] : [])]
 
-      return [{ rows, x: head.left, y: head.top - 1, ink: GEAR_INK }]
+      return [{ rows: lines, x: left, y: head.top - 1, ink: GEAR_INK }]
     }
     case 'sweetie':
       return [{ rows: isBig ? ['p.p', '.c.', 'p.p'] : ['pc'], x: head.right - (isBig ? 3 : 2), y: head.top - 1, ink: GEAR_INK }]
@@ -152,6 +165,18 @@ export type Scene = { pixels: Pixels; left: number; top: number; spriteWidth: nu
 
 export function lookOf(size: Size): Look {
   return LOOKS[size]
+}
+
+/** The big sprite for a stage: the baby, the teen, or an adult's own drawing where it has one. */
+export function bodyOf(kind: Species, stage: Stage, form: Form): Sprite {
+  if (stage === 'baby') {
+    return kind.big
+  }
+  if (stage === 'adult' && form !== 'rare') {
+    return kind.adults?.[form] ?? kind.teen
+  }
+
+  return kind.teen
 }
 
 function spriteOf(kind: Species, size: Size): Sprite {
@@ -207,6 +232,8 @@ export type PaintOptions = {
   /** The SVG card draws its own grass, so it asks for none. */
   withGrass?: boolean
   stage?: Stage
+  /** An adult's form; ignored before Lv 40. */
+  form?: Form
   /** What it carries while it works, and what stands in its corner of the yard. */
   nature?: Nature
   /** The sun, the evening sun, or the moon and stars, by the local hour. */
@@ -227,10 +254,48 @@ export function worn(accessory: Accessory, spriteWidth: number, dir: Pet['dir'])
  * The yard, `width` pixels across: the pet at step `one.x` of `steps` along it, what it wears
  * at its stage, its heart or sparkle, and a strip of grass with two flowers and its shadow.
  */
+/** The form an adult's gear is drawn for: its own, unless it is rare or its drawing has gear. */
+function dressedAsOf(sprite: Sprite, stage: Stage, form: Form): Nature {
+  return stage === 'adult' && form !== 'rare' && sprite.hasOwnGear !== true ? form : 'curious'
+}
+
+/**
+ * What a pet wears over its sprite, facing its way and placed from the sprite's top left: a
+ * teen's accessory, an adult's gear in its form (a cap, a headset or a pin takes the place of a
+ * head accessory), and on the big sprite a rare adult's mark. The pane and both games draw it
+ * from here, so a pet looks the same wherever it is.
+ */
+export function dressingOf(kind: Species, sprite: Sprite, isBig: boolean, stage: Stage, form: Form, dir: Pet['dir'], isWorking: boolean, frame: number): Overlay[] {
+  const spriteWidth = sprite.rows[0]?.length ?? 0
+  const isRare = isBig && stage === 'adult' && form === 'rare'
+  const dressedAs = dressedAsOf(sprite, stage, form)
+  const gear = gearOf(dressedAs, sprite.head ?? kind.head[isBig ? 'big' : 'mini'], isBig, isWorking, frame, sprite.rows)
+  const isHeadCovered = sprite.hasOwnGear === true || dressedAs === 'scholar' || dressedAs === 'gamer' || dressedAs === 'sweetie'
+  const onTop: Overlay[] = []
+
+  if (isRare) {
+    const { rows, x } = worn(kind.rare.overlay, spriteWidth, dir)
+
+    onTop.push({ rows, x, y: kind.rare.overlay.y, ink: kind.rare.overlay.ink })
+  } else if (stage !== 'baby' && !(isHeadCovered && kind.accessory.slot === 'head')) {
+    // An adult drawn on its own sits its accessory where the teen does.
+    const accessory = (isBig ? sprite.accessory ?? kind.teen.accessory : undefined) ?? kind.accessory[isBig ? 'big' : 'mini']
+    const { rows, x } = worn(accessory, spriteWidth, dir)
+
+    onTop.push({ rows, x, y: accessory.y, ink: accessory.ink })
+  }
+
+  return [...onTop, ...gear.map(overlay => facing(overlay, spriteWidth, dir))]
+}
+
 export function paint(one: Pet, kind: Species, size: Size, width: number, steps: number, options: PaintOptions = {}): Scene {
-  const { isSad = false, withGrass = true, stage = 'baby', nature = 'curious', daypart = 'day' } = options
+  const { isSad = false, withGrass = true, stage = 'baby', nature = 'curious', daypart = 'day', form = 'curious' } = options
   const look = LOOKS[size]
-  const sprite = spriteOf(kind, size)
+  // The small pane keeps the mini sprite at every stage; the big one grows and takes its form.
+  const isBig = look.sprite === 'big'
+  const isRare = isBig && stage === 'adult' && form === 'rare'
+  const sprite = isBig ? bodyOf(kind, stage, form) : spriteOf(kind, size)
+  const ink = { ...kind.ink, ...(sprite.ink ?? {}), ...(isRare ? kind.rare.ink : {}) }
   const height = sceneHeight(kind, size)
   const spriteWidth = sprite.rows[0]?.length ?? 0
   const pixels: Pixels = Array.from({ length: height }, () => Array.from({ length: width }, () => null))
@@ -288,25 +353,15 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
       put(x, grassTop, PALETTE.shadow)
     }
   }
-  stamp(spriteRows(one, sprite, isSad), kind.ink, left, top)
-  // A cap, a headset or a pin takes the place of a grown pet's head accessory.
-  const gear = gearOf(nature, kind.head[look.sprite], look.sprite === 'big', one.mood === 'work', one.frame)
-  const isHeadCovered = nature === 'scholar' || nature === 'gamer' || nature === 'sweetie'
-  if (stage !== 'baby' && !(isHeadCovered && kind.accessory.slot === 'head')) {
-    const accessory = kind.accessory[look.sprite]
-    const { rows, x } = worn(accessory, spriteWidth, one.dir)
-
-    stamp(rows, accessory.ink, left + x, top + accessory.y)
+  stamp(spriteRows(one, sprite, isSad), ink, left, top)
+  const dressedAs = dressedAsOf(sprite, stage, form)
+  for (const overlay of dressingOf(kind, sprite, isBig, stage, form, one.dir, one.mood === 'work', one.frame)) {
+    stamp(overlay.rows, overlay.ink, left + overlay.x, top + overlay.y)
   }
-  for (const overlay of gear) {
-    const placed = facing(overlay, spriteWidth, one.dir)
-
-    stamp(placed.rows, placed.ink, left + placed.x, top + placed.y)
-  }
-  // A star twinkles beside its head every other tick, high then low, unless a heart or a
+  // An adult twinkles beside its head every other tick, high then low, unless a heart or a
   // sparkle already shows there. The head is on the side it faces; with no room there, at the
   // yard's left edge, it takes the badge columns on the right.
-  if (stage === 'star' && (one.mood === 'walk' || one.mood === 'work' || one.mood === 'sleep') && one.frame % 2 === 0) {
+  if (stage === 'adult' && (one.mood === 'walk' || one.mood === 'work' || one.mood === 'sleep') && one.frame % 2 === 0) {
     const ahead = left - SPARKLE[0].length - 1
     const x = one.dir === -1 && ahead >= 0 ? ahead : left + spriteWidth + 1
 
@@ -317,7 +372,7 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
     stamp(HEART, { h: PALETTE.heart }, left + spriteWidth + 1, Math.max(0, top - 1 + (one.frame % 2)))
   }
   const prop = PROPS[nature]
-  if (one.mood === 'work' && prop !== null) {
+  if (one.mood === 'work' && prop !== null && dressedAs !== 'worker') {
     stamp(prop.rows, prop.ink, left + spriteWidth + 1, Math.max(0, top + 1))
   }
   // A gamer kicks a ball along ahead of it.

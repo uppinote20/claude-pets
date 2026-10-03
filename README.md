@@ -74,10 +74,14 @@ A pet reaches level `n + 1` at `25 × n²` experience: level 2 at 25, level 5 at
 | Stage | From | Looks |
 |-------|------|-------|
 | Baby | Lv 1 | As drawn |
-| Grown | Lv 15 | Wears its accessory: the cat and the bunny a ribbon, the chick a flower, the dog a scarf, the slime and the frog a crown, the hamster a leaf, the penguin a bow tie |
-| Star | Lv 40 | Its accessory, and a twinkle beside its head |
+| Teen | Lv 15 | A taller body of its own, and its accessory: the cat and the bunny a ribbon, the chick a flower, the dog a scarf, the slime and the frog a crown, the hamster a leaf, the penguin a knit hat |
+| Adult | Lv 40 | Evolves by its nature at that moment (worker, scholar, gamer, sweetie or curious), and twinkles |
 
-A toast says when it grows up or becomes a star. Levels and what is kept do not change: a pet that is already past Lv 15 wears its accessory the next time it is out.
+One evolution in twenty (with `luck` on) takes the **rare form** instead: the celestial cat, the phoenix chick, the moon wolf, the king slime, the moon bunny, the golden hamster, the emperor penguin, the prince frog.
+
+An adult with a drawing of its own for its nature wears it: so far the cat, in overalls, a scholar's robe and glasses, a hoodie, or extra fluff. The others are their teen in their nature's gear until theirs are drawn. The small size keeps the mini sprite at every stage.
+
+The form is settled when it reaches Lv 40 and kept from then on. A toast says when it becomes a teen and what it evolves into.
 
 ## Pet Run
 
@@ -99,13 +103,13 @@ As it grows the pet takes after you. Its **nature** comes from what it has seen 
 
 | Nature | From | How it shows |
 |--------|------|--------------|
-| worker | tool calls | carries a pickaxe, and swings it while tools run |
-| scholar | turns and output | wears a graduation cap, ambles and stops now and then to read |
-| sweetie | pats | wears a flower pin, pauses for a heart |
-| gamer | Pet Run and Pet Quest snacks | wears a headset, runs faster and kicks a ball along |
+| worker | tool calls | holds up a laptop while tools run; as an adult, carries a pickaxe and swings it |
+| scholar | turns and output | ambles and stops now and then to read; as an adult, wears a graduation cap |
+| sweetie | pats | pauses for a heart; as an adult, wears a flower pin |
+| gamer | Pet Run and Pet Quest snacks | runs faster and kicks a ball along; as an adult, wears a headset |
 | curious | (until one side stands out) | sniffs around |
 
-Its **rhythm** comes from the hours your finished turns keep: night owl, early bird, daytimer or evening type. A cap, a headset or a pin takes the place of a grown pet's head accessory. Both show in the stats and in `/pet status`, and the pet muses about them now and then.
+Its **rhythm** comes from the hours your finished turns keep: night owl, early bird, daytimer or evening type. Babies and teens show their nature in how they act; the gear comes with evolving, and a cap, a headset or a pin takes the place of a head accessory. Both show in the stats and in `/pet status`, and the pet muses about them now and then.
 
 The yard follows your clock: the morning sun, the midday sun, the evening sun, the moon and stars at night (the card off the terminal turns night blue). The local time comes from `date` on your machine.
 
