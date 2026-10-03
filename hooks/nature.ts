@@ -44,19 +44,28 @@ export function sidesOf(stats: PetStats): Record<Exclude<Nature, 'curious'>, num
   }
 }
 
+/** Where the largest of `values` is, or -1 when it is shared: a tie singles nothing out. */
+function topOf(values: readonly number[]): number {
+  const best = Math.max(...values)
+  const at = values.indexOf(best)
+
+  return values.indexOf(best, at + 1) === -1 ? at : -1
+}
+
 export function natureOf(stats: PetStats): Nature {
   const sides = Object.entries(sidesOf(stats)) as [Exclude<Nature, 'curious'>, number][]
   const total = sides.reduce((sum, [, weight]) => sum + weight, 0)
-  const [top, weight] = sides.reduce((best, side) => (side[1] > best[1] ? side : best))
+  const top = sides[topOf(sides.map(([, weight]) => weight))]
 
-  return total >= KNOWN_AFTER && weight / total >= STANDS_OUT ? top : 'curious'
+  return top !== undefined && total >= KNOWN_AFTER && top[1] / total >= STANDS_OUT ? top[0] : 'curious'
 }
 
 export function rhythmOf(hours: readonly number[]): Rhythm | null {
   const total = hours.reduce((sum, count) => sum + count, 0)
-  const top = hours.reduce((best, count, at) => (count > (hours[best] ?? 0) ? at : best), 0)
+  const top = topOf(hours)
+  const part = DAYPARTS[top]
 
-  return total >= RHYTHM_AFTER && (hours[top] ?? 0) / total >= RHYTHM_SHARE ? RHYTHMS[DAYPARTS[top] ?? 'day'] : null
+  return part !== undefined && total >= RHYTHM_AFTER && (hours[top] ?? 0) / total >= RHYTHM_SHARE ? RHYTHMS[part] : null
 }
 
 /** A line it says now and then while it wanders, by its nature and the time of day. */

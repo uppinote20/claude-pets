@@ -648,8 +648,13 @@ test('a nature shows once one side of it stands out, and a rhythm once its hours
   expect(natureOf({ ...none, pats: 60, tools: 20 })).toBe('sweetie')
   expect(natureOf({ ...none, snacks: 120, tools: 40 })).toBe('gamer')
   expect(natureOf({ ...none, tools: 100, pats: 50, snacks: 100 })).toBe('curious')
+  // Two sides tied at the top, each well past the share that stands out: still neither.
+  expect(natureOf({ ...none, tools: 200, snacks: 200 })).toBe('curious')
 
   expect(rhythmOf([3, 2, 2, 2])).toBeNull()
+  // Two quarters tied at the top: no rhythm, whichever comes first.
+  expect(rhythmOf([10, 10, 0, 0])).toBeNull()
+  expect(rhythmOf([0, 12, 12, 0])).toBeNull()
   expect(rhythmOf([20, 4, 4, 6])).toBe('night owl')
   expect(rhythmOf([2, 14, 4, 6])).toBe('early bird')
   expect([0, 5, 6, 11, 12, 17, 18, 23].map(daypartOf)).toEqual(['night', 'night', 'morning', 'morning', 'day', 'day', 'evening', 'evening'])
