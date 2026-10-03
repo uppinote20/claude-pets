@@ -46,6 +46,7 @@ claude --plugin-dir /path/to/claude-pets
 | `/pet choose <species>` | Bring out another pet: `cat`, `chick`, `dog`, `slime`, `bunny`, `hamster`, `penguin`, `frog` |
 | `/pet size <size>` | How tall the pane is: `small` (6 rows) or `medium` (9, the default) |
 | `/pet play` | Play Pet Run: `j` jumps, `r` runs again, `Esc` stops |
+| `/pet quest [stage]` | Play Pet Quest, an auto-running side-scroller: `j` jumps (again while rising to go higher), `r` retries, `n` goes on |
 | `/pet status` | Level, experience and counts |
 | `/pet bye` | Close the pane |
 
@@ -82,6 +83,14 @@ A toast says when it grows up or becomes a star. Levels and what is kept do not 
 `/pet play` opens a runner in its own pane. The pet runs along the grass: jump the bugs (`j`, or the Jump button), and snap up the snacks floating over them. It gets faster as it goes. `r` runs again after a bug, `Esc` stops.
 
 Every snack is 1 experience for the pet, and its best score is kept (`/pet status`). Off the terminal (desktop, mobile) the course is drawn as an SVG and the buttons take the taps.
+
+## Pet Quest
+
+`/pet quest` opens the next stage of an auto-running side-scroller. The pet runs on its own; `j` jumps, and a second `j` while it is rising takes it higher, even off the top of the view (a little arrow shows where it will come down). Stomp the bugs from above, knock the gift boxes from below for snacks, hop the stumps and the pits, and reach the snack bowl. A wall stops it until it jumps.
+
+Eight stages, each opened by clearing the one before (`/pet quest 3` replays one already open). Snacks are experience as in Pet Run, and `/pet status` counts the stages cleared.
+
+Stages are tile maps in [`hooks/quest.ts`](hooks/quest.ts), one character per 4×4 tile, so all eight take about 5 KB. A test searches every stage for a way through, so a stage that cannot be cleared fails the build.
 
 ## Sizes
 
