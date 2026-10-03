@@ -1,6 +1,7 @@
 // Writes assets/demo.gif: each species walking, working, cheering, being patted and napping,
 // drawn by the plugin's own scene code, so the GIF shows the pane's exact pixels and moves.
 // Run with Node 22.18+ (TypeScript imports): node scripts/demo.mjs
+// @handbook 4.4-readme-asset-generation
 import { writeFileSync } from 'node:fs'
 
 import { paint } from '../hooks/scene.ts'
