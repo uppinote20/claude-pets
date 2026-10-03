@@ -928,7 +928,7 @@ test('with art set to pixel the card keeps the 12×12 sprite', { options: { art:
   await card.unmount()
 })
 
-test('kitty draws the yard as an image with the hi-res pet; other terminals keep half blocks', async ($, on) => {
+test('kitty draws the yard as an image with the hi-res pet; other terminals keep half blocks', { options: { luck: false } }, async ($, on) => {
   mock.env(on, { TERM: 'xterm-kitty' })
   mock.store(on)
   on('command.register', async () => ({ value: { command: 'pet' } }))
@@ -950,7 +950,7 @@ test('kitty draws the yard as an image with the hi-res pet; other terminals keep
   await pane.unmount()
 })
 
-test('Ghostty is an image terminal too, by its program name', async ($, on) => {
+test('Ghostty is an image terminal too, by its program name', { options: { luck: false } }, async ($, on) => {
   mock.env(on, { TERM: 'xterm-256color', TERM_PROGRAM: 'ghostty' })
   mock.store(on)
   on('command.register', async () => ({ value: { command: 'pet' } }))
