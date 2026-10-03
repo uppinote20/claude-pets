@@ -126,7 +126,7 @@ export type PaintOptions = {
 }
 
 /** The accessory's rows and left edge for the way the pet faces: mirrored with it. */
-function worn(accessory: Accessory, spriteWidth: number, dir: Pet['dir']): { rows: string[]; x: number } {
+export function worn(accessory: Accessory, spriteWidth: number, dir: Pet['dir']): { rows: string[]; x: number } {
   if (dir !== 1) {
     return { rows: [...accessory.rows], x: accessory.x }
   }
@@ -372,6 +372,37 @@ export function toSvg(scene: Scene, size: Size, caption: Caption): string {
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
     ...parts,
+    '</svg>',
+  ].join('')
+}
+
+/** Pixels as an SVG on a dark rounded backdrop, `unit` CSS pixels each: Pet Run off the terminal. */
+export function pixelsSvg(pixels: Pixels, unit: number): string {
+  const width = (pixels[0]?.length ?? 0) * unit
+  const height = pixels.length * unit
+  const dots: string[] = []
+
+  pixels.forEach((row, y) => {
+    let x = 0
+
+    while (x < row.length) {
+      const color = row[x]
+      let end = x + 1
+
+      while (end < row.length && row[end] === color) {
+        end += 1
+      }
+      if (color !== null && color !== undefined) {
+        dots.push(`<rect x="${x * unit}" y="${y * unit}" width="${(end - x) * unit}" height="${unit}" fill="${hex(color)}"/>`)
+      }
+      x = end
+    }
+  })
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+    `<rect width="${width}" height="${height}" rx="${unit * 2}" fill="#1e1e2e"/>`,
+    `<g shape-rendering="crispEdges">${dots.join('')}</g>`,
     '</svg>',
   ].join('')
 }

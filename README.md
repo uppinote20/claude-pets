@@ -45,6 +45,7 @@ claude --plugin-dir /path/to/claude-pets
 | `/pet name <name>` | Name it (up to 20 characters) |
 | `/pet choose <species>` | Bring out another pet: `cat`, `chick`, `dog`, `slime`, `bunny`, `hamster`, `penguin`, `frog` |
 | `/pet size <size>` | How tall the pane is: `small` (6 rows) or `medium` (9, the default) |
+| `/pet play` | Play Pet Run: `j` jumps, `r` runs again, `Esc` stops |
 | `/pet status` | Level, experience and counts |
 | `/pet bye` | Close the pane |
 
@@ -57,6 +58,7 @@ Every species is its own pet, with its own name and its own level. Switching wit
 | Event | Experience |
 |-------|------------|
 | Tool call | 1 |
+| Pet Run snack | 1 |
 | Pat | 2 |
 | Finished turn | 5 |
 | 1,000 output tokens | 1 |
@@ -74,6 +76,12 @@ A pet reaches level `n + 1` at `25 × n²` experience: level 2 at 25, level 5 at
 | Star | Lv 40 | Its accessory, and a twinkle beside its head |
 
 A toast says when it grows up or becomes a star. Levels and what is kept do not change: a pet that is already past Lv 15 wears its accessory the next time it is out.
+
+## Pet Run
+
+`/pet play` opens a runner in its own pane. The pet runs along the grass: jump the bugs (`j`, or the Jump button), and snap up the snacks floating over them. It gets faster as it goes. `r` runs again after a bug, `Esc` stops.
+
+Every snack is 1 experience for the pet, and its best score is kept (`/pet status`). Off the terminal (desktop, mobile) the course is drawn as an SVG and the buttons take the taps.
 
 ## Sizes
 

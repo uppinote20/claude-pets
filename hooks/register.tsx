@@ -9,6 +9,7 @@
  * @handbook 3.1-xp-level-curve
  * @handbook 3.2-mood-state-machine
  * @handbook 3.3-pet-command
+ * @handbook 3.4-pet-run
  * @handbook 4.2-pixel-pipeline
  * @handbook 4.3-surface-branch
  * @tested tests/pet.test.ts
@@ -16,12 +17,19 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Pet, PetProfile, PetSize, PetStats } from '../types'
-import { DEFAULT_SIZE, SIZES, cardWidthFor, lookOf, stageOf, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
+import type { Pet, PetProfile, PetSize, PetStats, RunView } from '../types'
+import { DEFAULT_SIZE, SIZES, cardWidthFor, lookOf, pixelsSvg, stageOf, minWidth, pack, paint, terminalRows, toCells, toSvg } from './scene'
+import { RUN_HEIGHT, RUN_TICK_MS, advance, jump, newRun, paintRun, scoreOf } from './run'
+import type { Run } from './run'
 import { DEFAULT_SPECIES, SPECIES } from './species'
 import type { Species } from './species'
 
 const PANE = 'pets'
+const PLAY = 'pets-run'
+const PLAY_TITLE = 'Pet Run'
+/** The Pet Run course's width bounds, in pixels (terminal columns). */
+const RUN_MIN = 40
+const RUN_MAX = 80
 const TITLE = 'Pet'
 const PROFILE_KEY = 'profile'
 const NAME_LIMIT = 20
@@ -37,10 +45,11 @@ const MAX_CARD = 30
 const CELL_PX = 8
 const XP_PER_TURN = 5
 const XP_PER_PAT = 2
+const XP_PER_SNACK = 1
 const TOKENS_PER_XP = 1000
 const XP_CURVE = 25
 /** What follows `/pet`: the command's description and its usage line are both built from this. */
-const VERBS = ['pat', 'name <name>', 'choose <species>', 'size <small|medium>', 'status', 'bye'] as const
+const VERBS = ['pat', 'name <name>', 'choose <species>', 'size <small|medium>', 'play', 'status', 'bye'] as const
 const BAR_CELLS = 5
 /** The stats column beside the yard: its width, and the bar's inside it. */
 const PANEL = 28
@@ -48,12 +57,23 @@ const PANEL_BAR = 20
 
 const PASTEL = { yellow: '#ffd787', pink: '#ffafd7', green: '#afd7af', ink: '#3a2a2a', gray: '#b2b2b2', dim: '#5f5f5f' } as const
 const NEWBORN: Pet = { x: 0, dir: 1, frame: 0, mood: 'walk', hold: 0, idle: 0 }
-const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0 }
+const UNMET: PetStats = { name: '', pats: 0, tools: 0, turns: 0, tokens: 0, snacks: 0, best: 0 }
 const STRANGER: PetProfile = { species: DEFAULT_SPECIES, size: DEFAULT_SIZE, pets: {} }
 
 const pet = atom({ plugin: 'pets', key: 'pet' } as const, NEWBORN)
 const profile = atom({ plugin: 'pets', key: 'profile' } as const, STRANGER)
 const isWorried = atom({ plugin: 'pets', key: 'isWorried' } as const, false)
+const runView = atom({ plugin: 'pets', key: 'run' } as const, { phase: 'ready', score: 0, snacks: 0 } as RunView)
+
+// Pet Run's course lives here rather than in $.state: it changes twenty times a second and the
+// terminal repaints it with $.ui.blit, without a redraw. `runView` carries what the text shows.
+let course: Run | null = null
+let ticker: { cancel: () => void } | null = null
+// Redraw on every tick when a surface without Raster (desktop, VS Code, mobile) is attached.
+let isRemote = false
+// The level last seen for the pet that is out, so a level-up is announced once, whether it came
+// from a turn, a pat or a run.
+let shownLevel = 1
 
 function speciesOf(who: PetProfile): Species {
   return SPECIES[who.species] ?? SPECIES[DEFAULT_SPECIES]!
@@ -82,11 +102,17 @@ function titleOf(who: PetProfile): string {
 }
 
 /**
- * A tool call is 1, a pat 2, a finished turn 5, and every thousand output tokens 1.
+ * A tool call is 1, a pat 2, a finished turn 5, a Pet Run snack 1, and every thousand output tokens 1.
  * Output only: input and cache reads grow with the conversation's length, not with the work done.
  */
 function xpOf(stats: PetStats): number {
-  return stats.tools + stats.turns * XP_PER_TURN + stats.pats * XP_PER_PAT + Math.floor(stats.tokens / TOKENS_PER_XP)
+  return (
+    stats.tools +
+    stats.turns * XP_PER_TURN +
+    stats.pats * XP_PER_PAT +
+    Math.floor(stats.tokens / TOKENS_PER_XP) +
+    stats.snacks * XP_PER_SNACK
+  )
 }
 
 /**
@@ -121,6 +147,8 @@ function toStats(fields: Record<string, unknown>): PetStats {
     tools: count(fields.tools),
     turns: count(fields.turns),
     tokens: count(fields.tokens),
+    snacks: count(fields.snacks),
+    best: count(fields.best),
   }
 }
 
@@ -174,6 +202,7 @@ function statusOf(who: PetProfile): string {
   return [
     `${titleOf(who)} · Lv ${level} · ${xpOf(stats)} xp (next at ${XP_CURVE * level * level})`,
     `${stats.pats} pats, ${stats.turns} turns, ${stats.tools} tool calls, ${compact(stats.tokens)} output tokens`,
+    ...(stats.best === 0 ? [] : [`Pet Run best ${stats.best}, ${stats.snacks} snacks`]),
     ...(others.length === 0 ? [] : [`Also: ${others.join(', ')}`]),
   ].join(' · ')
 }
@@ -274,6 +303,54 @@ async function grow($: EngineInterface, change: (stats: PetStats) => PetStats): 
   return now
 }
 
+function viewOf(run: Run): RunView {
+  return { phase: run.phase, score: scoreOf(run), snacks: run.snacks }
+}
+
+/** Cells of the course for the terminal's Raster. */
+function runCells(run: Run, who: PetProfile): string {
+  return pack(toCells(paintRun(run, speciesOf(who), stageOf(levelOf(statsOf(who))))))
+}
+
+/**
+ * Keeps a finished (or abandoned) run: its snacks feed the pet, its score may be the best, and a
+ * level the snacks reach is announced like any other.
+ */
+async function keepRun($: EngineInterface, run: Run): Promise<PetProfile> {
+  const score = scoreOf(run)
+  const kept = await grow($, stats => ({ ...stats, snacks: stats.snacks + run.snacks, best: Math.max(stats.best, score) }))
+  shownLevel = announce($, kept, shownLevel)
+
+  return kept
+}
+
+/**
+ * One tick of Pet Run: moves the course on, repaints it in place on the terminal, and
+ * updates the text when the score or the phase changes. A run that just ended is kept.
+ */
+async function tickRun($: EngineInterface): Promise<void> {
+  const run = course
+  if (run === null || run.phase !== 'running') {
+    return
+  }
+  const who = await read($, profile)
+  // Closed or started over while the profile was read: that course is no longer this one to move.
+  if (course !== run) {
+    return
+  }
+  const now = advance(run, speciesOf(who))
+  course = now
+
+  void $.ui.blit({ requestId: PLAY, key: 'run', cells: runCells(now, who) })
+  if (now.phase === 'over') {
+    await update($, runView, () => viewOf(now))
+    $.ui.toast(`${calledOf(who)} ran ${scoreOf(now)} and ate ${now.snacks} snacks.`)
+    await keepRun($, now)
+  } else if (isRemote || now.tick % 10 === 0) {
+    await update($, runView, () => viewOf(now))
+  }
+}
+
 /**
  * Toasts a level reached since `shown`, the level last seen: growing up and starting to shine
  * say so. Resolves to the level now seen.
@@ -300,8 +377,6 @@ function announce($: EngineInterface, now: PetProfile, shown: number): number {
 export const register: Register = on => {
   // Tool calls since the last save: the store is written once a turn, not on every call.
   let unsavedTools = 0
-  // The level last seen for the pet that is out, so a level-up is announced once.
-  let shownLevel = 1
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -368,6 +443,29 @@ export const register: Register = on => {
       }
       case 'status':
         return { text: statusOf(who) }
+      case 'play': {
+        // A run still going is kept before a new one takes its place, as closing the pane would.
+        const going = course
+        ticker?.cancel()
+        ticker = null
+        course = newRun(course?.width ?? RUN_MIN, Math.floor(Math.random() * 2 ** 31))
+        if (going !== null && going.phase === 'running') {
+          await keepRun($, going)
+        }
+        isRemote = (await $.session.surfaces()).some(surface => surface !== 'terminal')
+        await update($, runView, () => viewOf(course ?? newRun(RUN_MIN)))
+        const opened = await $.ui.open({ id: PLAY, title: PLAY_TITLE, rows: RUN_HEIGHT / 2 + 2, focus: true, closeOnEscape: true })
+        // Only a placed pane can be closed, and closing is what stops the clock.
+        if (opened.isPlaced) {
+          ticker = $.clock.every(RUN_TICK_MS, () => void tickRun($))
+        }
+
+        return {
+          text: opened.isPlaced
+            ? `${called} is ready to run: j to jump, r to start over, Esc to stop.`
+            : `${called} is ready to run, but the pane is not on screen: ${opened.reason}`,
+        }
+      }
       case 'bye':
         await $.ui.close({ id: PANE })
 
@@ -505,5 +603,78 @@ export const register: Register = on => {
     const alt = `${titleOf(who)}, Lv ${levelOf(stats)}${says === '' ? '' : `: ${says}`}`
 
     return <Svg source={toSvg(scene, who.size, caption)} alt={alt} />
+  })
+
+  // Closing Pet Run stops its clock; a run still going is kept as it stands.
+  on('ui.close', { id: PLAY }, async ($, e, next) => {
+    ticker?.cancel()
+    ticker = null
+    if (course !== null && course.phase === 'running') {
+      await keepRun($, course)
+    }
+    course = null
+
+    return next(e)
+  })
+
+  on('ui.render', { component: 'Pane', requestId: PLAY }, async ($, e) => {
+    const who = await read($, profile)
+    const view = await read($, runView)
+    const fits = Math.max(RUN_MIN, Math.min(RUN_MAX, e.props.bodyColumns - 2))
+
+    // A course not yet started takes the pane's width; one under way keeps its own.
+    if (course === null || (course.phase === 'ready' && course.width !== fits)) {
+      course = newRun(fits, course?.seed ?? 1)
+    }
+    const run = course
+    // A run just over counts before it is kept, so both surfaces show the new best at once.
+    const best = Math.max(statsOf(who).best, view.phase === 'over' ? view.score : 0)
+    const hint = view.phase === 'ready' ? 'press j to start' : view.phase === 'over' ? 'ouch! r to run again' : ''
+    const onJump = () => {
+      if (course !== null) {
+        const before = course.phase
+        course = jump(course)
+        if (course.phase !== before) {
+          void update($, runView, () => viewOf(course ?? run))
+        }
+      }
+    }
+    const onRestart = () => {
+      if (course !== null && course.phase !== 'running') {
+        course = newRun(course.width, Math.floor(Math.random() * 2 ** 31))
+        void update($, runView, () => viewOf(course ?? run))
+      }
+    }
+    if (e.surface === 'terminal') {
+      const { Box, Text, Raster, Button } = $.ui.resolve(e)
+
+      return (
+        <Box flexDirection="column">
+          <Box>
+            <Text color={PASTEL.pink} bold>{`${calledOf(who)} `}</Text>
+            <Text color={PASTEL.gray}>{`score ${view.score}  best ${best}  snacks ${view.snacks}`}</Text>
+            {hint !== '' && <Text color={PASTEL.yellow}>{`  ${hint}`}</Text>}
+          </Box>
+          <Raster key="run" columns={run.width} rows={RUN_HEIGHT / 2} cells={runCells(run, who)} />
+          <Box gap={1}>
+            <Button key="jump" hotkey="j" plain onPress={onJump}>Jump</Button>
+            <Button key="restart" hotkey="r" plain onPress={onRestart}>Again</Button>
+          </Box>
+        </Box>
+      )
+    }
+
+    const { Box, Text, Svg, Button } = $.ui.resolve(e)
+
+    return (
+      <Box flexDirection="column">
+        <Text>{`${calledOf(who)} · score ${view.score} · best ${best} · snacks ${view.snacks}${hint === '' ? '' : ` · ${hint}`}`}</Text>
+        <Svg source={pixelsSvg(paintRun(run, speciesOf(who), stageOf(levelOf(statsOf(who)))), 6)} alt={`Pet Run, score ${view.score}`} />
+        <Box gap={1}>
+          <Button key="jump" hotkey="j" onPress={onJump}>Jump</Button>
+          <Button key="restart" hotkey="r" onPress={onRestart}>Again</Button>
+        </Box>
+      </Box>
+    )
   })
 }
