@@ -535,7 +535,7 @@ test('/pet quest during a stage keeps its snacks before starting it again', asyn
   await game.unmount()
 })
 
-test('/pet choose during a stage gives its snacks to the pet that played it', async ($, on) => {
+test('/pet choose during a stage gives its snacks to the pet that played it', { options: { luck: false } }, async ($, on) => {
   const { run, game } = await questWithSnacks($, on)
 
   expect(await run('choose chick')).toBe('The chick is out.')
