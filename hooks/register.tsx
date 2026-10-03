@@ -31,6 +31,7 @@ const NAP_AFTER = 200
 const WORRY_PERCENT = 80
 /** The widest yard, in sprite pixels: room to roam above a wide prompt, and the SVG card's, where wider leaves the pet lost on it. */
 const MAX_YARD = 80
+/** The widest the SVG card grows to fill the slot, in sprite pixels. A tally line that needs more still widens it. */
 const MAX_CARD = 30
 /** The terminal's cell, in CSS pixels of a remote surface's code font, roughly. */
 const CELL_PX = 8
