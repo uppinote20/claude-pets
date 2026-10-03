@@ -59,6 +59,10 @@ function rects(pixels, unit, left, top) {
       frames.push(paintRun(run, cat, 'baby'))
     }
   }
+  // As the quest's: an autopilot that no longer lasts the course fails here, not as a short GIF.
+  if (run.phase !== 'running') {
+    throw new Error(`run.gif: the autopilot hit a bug after ${frames.length * 2} ticks (seed or physics changed?)`)
+  }
   write('run.gif', gif(frames, frames[0][0].length, frames[0].length, { pixel: 5, delay: 10, backdrop: BACKDROP }), `${frames.length} frames`)
 }
 

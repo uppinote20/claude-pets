@@ -77,7 +77,7 @@ Snacks from both games are experience. What a game earned stays with the pet tha
 
 ### Pet Quest
 
-`/pet quest` opens the next stage of an auto-running side-scroller. The pet runs on its own; `j` jumps, and a second `j` while rising takes it higher, even off the top of the view (an arrow shows where it will land). Stomp the bugs from above, knock the gift boxes from below for snacks, hop the stumps and pits, and reach the snack bowl.
+`/pet quest` opens the next stage of an auto-running side-scroller. The pet runs on its own; `j` jumps, and a second `j` while rising takes it higher, even off the top of the view (an arrow shows where it will land). Stomp the bugs from above, knock the gift boxes from below for snacks, hop the stumps and pits, and reach the snack bowl. A wall stops it until it jumps.
 
 Eight stages, each opened by clearing the one before; `/pet quest 3` replays one already open. Stages are tile maps in [`hooks/quest.ts`](hooks/quest.ts), one character per 4×4 tile (all eight take about 7 KB), and a test searches every stage for a way through.
 

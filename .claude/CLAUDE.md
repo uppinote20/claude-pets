@@ -19,9 +19,10 @@ claude-pets/
 ├── types/index.d.ts       # State contract ($.state values under `pets`)
 ├── tests/pet.test.ts      # `claude plugin test .`
 ├── scripts/sprites.mjs    # Regenerates assets/*.svg from the sprite data
-├── scripts/demo.mjs       # Regenerates assets/demo.gif with hooks/scene.ts (GIF encoder inline)
+├── scripts/demo.mjs       # Regenerates assets/demo.gif with hooks/scene.ts
 ├── scripts/showcase.mjs   # Regenerates assets/run.gif, quest.gif, stages.svg, yards.svg from the hooks
 ├── scripts/gif.mjs        # GIF encoder shared by the two scripts above
+├── scripts/ts-resolve.mjs # Lets Node load hooks/*.ts that import one another without an extension
 └── assets/                # README images (generated, committed)
 ```
 
