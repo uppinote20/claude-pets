@@ -1,6 +1,6 @@
 {
   "name": "pets",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A pixel pet that lives in a Claude Code pane: it wanders, reacts to your session, and grows as you work",
   "author": {
     "name": "uppinote"
