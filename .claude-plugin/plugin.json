@@ -21,16 +21,6 @@
       "title": "Luck",
       "description": "Gifts after finished turns, lucky pats and rare shiny pets",
       "default": true
-    },
-    "art": {
-      "type": "string",
-      "title": "Art",
-      "description": "Hi-res art where the surface can show it (desktop, mobile, kitty, Ghostty), or half-block pixels everywhere",
-      "options": [
-        "auto",
-        "pixel"
-      ],
-      "default": "auto"
     }
   }
 }
