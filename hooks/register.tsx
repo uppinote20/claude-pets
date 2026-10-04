@@ -59,7 +59,7 @@ const XP_PER_PAT = 2
 const XP_PER_SNACK = 1
 const TOKENS_PER_XP = 1000
 const XP_CURVE = 25
-/** What follows `/pet`: the command's description and its usage line are both built from this. */
+/** What follows `/pet`: the command's argument hint and its usage line are both built from this. */
 const VERBS = ['pat', 'name <name>', 'choose <species>', 'size <small|medium>', 'play', 'quest [stage]', 'status', 'bye'] as const
 const BAR_CELLS = 5
 /** The stats column beside the yard: its width, and the bar's inside it. */
@@ -622,7 +622,8 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'pet',
-      description: `Let your pixel pet out; /pet ${VERBS.join(', ')}`,
+      description: 'Let your pixel pet out',
+      argumentHint: `[${VERBS.map(form => form.split(' ')[0]).join('|')}]`,
     })
     const kept = toProfile(await $.store.get(PROFILE_KEY))
     await update($, profile, () => kept)
