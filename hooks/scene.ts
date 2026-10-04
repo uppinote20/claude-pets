@@ -6,12 +6,10 @@
  *
  * @handbook 4.2-pixel-pipeline
  * @handbook 4.3-surface-branch
- * @handbook 4.5-hi-res-art
  * @tested tests/pet.test.ts
  */
 import type { Pet } from '../types'
 import type { Daypart, Nature } from './nature'
-import type { Art } from './art'
 import type { Accessory, Head, Species, Sprite } from './species'
 
 /** The four sides of a nature, in the order `PetStats.leaning` keeps them. Here, not in nature.ts, so scene.ts imports nothing at run time and scripts can load it. */
@@ -268,11 +266,8 @@ const BADGE = 6
 
 export type Pixels = (number | null)[][]
 
-/** The pet in hi-res art, drawn over the pixels in the box the 12×12 sprite would take. */
-export type HiResPet = { rows: string[]; ink: Readonly<Record<string, number>>; left: number; top: number; box: number }
-
-/** What `paint` drew: the pixels, where the sprite sits in them, the shade its leaning gives the grass, and the pet in hi-res art when it is drawn so. */
-export type Scene = { pixels: Pixels; left: number; top: number; spriteWidth: number; ground: number; shade: (color: number) => number; pet?: HiResPet }
+/** What `paint` drew: the pixels, where the sprite sits in them, and the shade its leaning gives the grass. */
+export type Scene = { pixels: Pixels; left: number; top: number; spriteWidth: number; ground: number; shade: (color: number) => number }
 
 export function lookOf(size: Size): Look {
   return LOOKS[size]
@@ -351,11 +346,6 @@ export type PaintOptions = {
   daypart?: Daypart
   /** Its leaning (worker, scholar, sweetie, gamer shares): how much of the yard each side fills. */
   leaning?: readonly number[]
-  /**
-   * Hi-res art for the pet, for a surface that can show it: the pet is then left out of the
-   * pixels and handed back as `Scene.pet`, its gear and accessory with it (the art has its own).
-   */
-  art?: Art
 }
 
 /** The accessory's rows and left edge for the way the pet faces: mirrored with it. */
@@ -407,7 +397,7 @@ export function dressingOf(kind: Species, sprite: Sprite, isBig: boolean, stage:
 }
 
 export function paint(one: Pet, kind: Species, size: Size, width: number, steps: number, options: PaintOptions = {}): Scene {
-  const { isSad = false, withGrass = true, stage = 'baby', nature = 'curious', daypart = 'day', form = 'curious', leaning = [], art } = options
+  const { isSad = false, withGrass = true, stage = 'baby', nature = 'curious', daypart = 'day', form = 'curious', leaning = [] } = options
   const look = LOOKS[size]
   // The small pane keeps the mini sprite at every stage; the big one grows and takes its form.
   const isBig = look.sprite === 'big'
@@ -486,14 +476,9 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
       put(x, grassTop, PALETTE.shadow)
     }
   }
-  const hiRes = isBig && art !== undefined ? { rows: spriteRows(one, art, isSad), ink: art.ink, left, top, box: spriteWidth } : undefined
+  stamp(spriteRows(one, sprite, isSad), ink, left, top)
   const dressedAs = dressedAsOf(sprite, stage, form)
-  // The hi-res art draws its own look; otherwise the sprite and what it wears over it.
-  const dressing = hiRes === undefined ? dressingOf(kind, sprite, isBig, stage, form, one.dir, one.mood === 'work', one.frame) : []
-  if (hiRes === undefined) {
-    stamp(spriteRows(one, sprite, isSad), ink, left, top)
-  }
-  for (const overlay of dressing) {
+  for (const overlay of dressingOf(kind, sprite, isBig, stage, form, one.dir, one.mood === 'work', one.frame)) {
     stamp(overlay.rows, overlay.ink, left + overlay.x, top + overlay.y)
   }
   // An adult twinkles beside its head every other tick, high then low, unless a heart or a
@@ -528,7 +513,7 @@ export function paint(one: Pet, kind: Species, size: Size, width: number, steps:
     stamp(SPARKLE, { s: PALETTE.sparkle, w: PALETTE.petal }, isLeft ? left - 3 : left + spriteWidth, isLeft ? top + 1 : top - 1)
   }
 
-  return { pixels, left, top, spriteWidth, ground: look.ground, shade, ...(hiRes === undefined ? {} : { pet: hiRes }) }
+  return { pixels, left, top, spriteWidth, ground: look.ground, shade }
 }
 
 export type Cell = { glyph: string; fg: number | null; bg: number | null }
@@ -660,24 +645,6 @@ export function toSvg(scene: Scene, size: Size, caption: Caption): string {
   })
   parts.push(`<g shape-rendering="crispEdges">${dots.join('')}</g>`)
 
-  // The pet in hi-res art, in the box its 12×12 sprite would take.
-  if (scene.pet !== undefined) {
-    const { rows, ink, left, top, box } = scene.pet
-    const fine = (box * unit) / (rows[0]?.length || 1)
-    const art: string[] = []
-
-    rows.forEach((row, y) => {
-      ;[...row].forEach((mark, x) => {
-        const color = ink[mark]
-
-        if (color !== undefined) {
-          art.push(`<rect x="${(pad + left * unit + x * fine).toFixed(2)}" y="${(band + top * unit + y * fine).toFixed(2)}" width="${fine.toFixed(2)}" height="${fine.toFixed(2)}" fill="${hex(color)}"/>`)
-        }
-      })
-    })
-    parts.push(`<g shape-rendering="crispEdges">${art.join('')}</g>`)
-  }
-
   // The tag: name and level, and a thin bar of the way to the next level.
   const label = caption.name === '' ? `Lv ${caption.level}` : `${caption.name}  Lv ${caption.level}`
   const tagWidth = textWidth(label, font) + 16
@@ -747,50 +714,4 @@ export function pixelsSvg(pixels: Pixels, unit: number): string {
     `<g shape-rendering="crispEdges">${dots.join('')}</g>`,
     '</svg>',
   ].join('')
-}
-
-/**
- * The scene as one RGBA picture, for a terminal that shows images (kitty, Ghostty): every
- * pixel of the yard `scale` across and down (a cell is one pixel across and two down, so the
- * picture fills the same cells as the half blocks would), the hi-res pet over it. At the default
- * 8, a 32-wide art over the 12-pixel sprite box is exactly 3 pixels a dot, so no dot is wider
- * than its neighbours.
- */
-export function toRgba(scene: Scene, scale = 8): { rgba: string; width: number; height: number } {
-  const across = scene.pixels[0]?.length ?? 0
-  const width = across * scale
-  const height = scene.pixels.length * scale
-  const bytes = new Uint8Array(width * height * 4)
-  const fill = (x0: number, y0: number, size: number, color: number) => {
-    for (let y = Math.round(y0); y < Math.round(y0 + size) && y < height; y += 1) {
-      for (let x = Math.round(x0); x < Math.round(x0 + size) && x < width; x += 1) {
-        if (x >= 0 && y >= 0) {
-          const at = (y * width + x) * 4
-          bytes[at] = (color >> 16) & 0xff
-          bytes[at + 1] = (color >> 8) & 0xff
-          bytes[at + 2] = color & 0xff
-          bytes[at + 3] = 0xff
-        }
-      }
-    }
-  }
-
-  scene.pixels.forEach((row, y) => row.forEach((color, x) => color !== null && color !== undefined && fill(x * scale, y * scale, scale, color)))
-  if (scene.pet !== undefined) {
-    const { rows, ink, left, top, box } = scene.pet
-    const fine = (box * scale) / (rows[0]?.length || 1)
-
-    rows.forEach((row, y) => {
-      ;[...row].forEach((mark, x) => {
-        const color = ink[mark]
-
-        if (color !== undefined) {
-          fill(left * scale + x * fine, top * scale + y * fine, fine, color)
-        }
-      })
-    })
-  }
-
-  // The environment has Uint8Array.prototype.toBase64; the es2023 lib does not declare it yet.
-  return { rgba: (bytes as Uint8Array & { toBase64(): string }).toBase64(), width, height }
 }

@@ -142,7 +142,7 @@ Turn it all off with the plugin's `luck` setting (`/config`).
 </details>
 
 <details>
-<summary><b>How it is drawn</b>: sizes, surfaces, hi-res art</summary>
+<summary><b>How it is drawn</b>: sizes, surfaces</summary>
 
 | Size | Sprite | Terminal rows |
 |------|--------|---------------|
@@ -154,10 +154,7 @@ The pane opens at that height; a height you drag it to yourself wins. With room 
 | Surface | Drawn as |
 |---------|----------|
 | Terminal | Half-block cells (`Raster`) |
-| kitty, Ghostty | One image of the yard, the pet in hi-res art (detected from `TERM` / `TERM_PROGRAM`) |
-| Desktop, VS Code, mobile | An SVG card with a name tag, a speech bubble and a grass mound, the pet in hi-res art |
-
-The hi-res art is 32×32, outlined and shaded, and every species has its baby and teen drawn so far, in [`hooks/art.ts`](hooks/art.ts). Adults, shiny pets and rare adults use the pixel sprite until their art is drawn. Set the plugin's `art` setting to `pixel` to keep half blocks everywhere.
+| Desktop, VS Code, mobile | An SVG card with a name tag, a speech bubble and a grass mound |
 
 </details>
 
