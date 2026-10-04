@@ -892,3 +892,18 @@ test('the card grass takes the shade of the leaning, as the pane grass does', { 
   expect(source).not.toContain('fill="#b5dcae"')
   await card.unmount()
 })
+
+test('/pet registers with its verbs as the argument hint, and a short description', async ($, on) => {
+  const registered: { description: string; argumentHint?: string }[] = []
+  mock.store(on)
+  on('command.register', async (_, e) => {
+    registered.push(e)
+
+    return { value: { command: 'pet' } }
+  })
+  on('session.start', async (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  expect(registered[0]?.argumentHint).toBe('[pat|name|choose|size|play|quest|status|bye]')
+  expect(registered[0]?.description).toBe('Let your pixel pet out')
+})
